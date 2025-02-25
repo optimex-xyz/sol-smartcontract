@@ -1,0 +1,31 @@
+[toolchain]
+
+[features]
+resolution = true
+skip-lint = false
+seeds = true
+
+[programs.localnet]
+peta_fi_sol_smartcontract = "E2pt2s1vZjgf1eBzWhe69qDWawdFKD2u4FbLEFijSMJP"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "localnet"
+wallet = "./tests/fake_deployer.json"
+
+[test]
+upgradeable = true
+
+[scripts]
+#test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/verify_presign.test.ts"
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/petafi_success.test.ts"
+#test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/payment.test.ts"
+#test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/deposit.test.ts"
+#test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/claim.test.ts"
+#test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/settlement.test.ts"
+#test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/admin-manage.test.ts"
+#test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/setTotalFee.test.ts"
+#test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/closeFinishedTrade.test.ts"
+#test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/withdrawTotalFee.test.ts"
