@@ -1,6 +1,6 @@
 import * as anchor from '@coral-xyz/anchor';
 import { Program } from '@coral-xyz/anchor';
-import { PetaFiSolSmartcontract } from '../target/types/peta_fi_sol_smartcontract';
+import { OptimexSolSmartcontract } from '../target/types/optimex_sol_smartcontract';
 import {
   ComputeBudgetProgram,
   Connection,
@@ -23,35 +23,35 @@ import {
   createSyncNativeInstruction,
   getAssociatedTokenAddressSync,
 } from '@solana/spl-token';
-import { getFeeReceiverPda, getProtocolPda, getTradeVaultPda, getUserTradeDetailPda, getVaultPda, getWhitelistPda } from '../petafi-solana-js/pda/get_pda_address';
-import { createInitializePetaFiInstructions } from '../petafi-solana-js/instructions/intialize';
-import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions, DepositInstructionParam } from '../petafi-solana-js/instructions/deposit';
-import { createUserPresignSettlementTransactionAndSerializeToString } from '../petafi-solana-js/instructions/settlement';
-import { createAssociatedTokenAccountInstructionIfNeeded } from '../petafi-solana-js/instructions/helpers';
-import { getTradeInput } from '../petafi-solana-js/utils/param_utils';
-import { createClaimAndRefundAtaAndProtocolAtaIfNeededInstructions } from '../petafi-solana-js/instructions/claim';
-import { createSetTotalFeeInstructions } from '../petafi-solana-js/instructions/set_total_fee';
-import { createAddOperatorInstruction } from '../petafi-solana-js/instructions/manage_operator';
-import { WSOL_MINT } from '../petafi-solana-js/constants';
-import { createAddFeeReceiverInstruction, createAddOrUpdateWhitelistInstruction } from '../petafi-solana-js/instructions/manage_config';
+import { getFeeReceiverPda, getProtocolPda, getTradeVaultPda, getUserTradeDetailPda, getVaultPda, getWhitelistPda } from '../solana-js/pda/get_pda_address';
+import { createInitializeProgramInstructions } from '../solana-js/instructions/intialize';
+import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions, DepositInstructionParam } from '../solana-js/instructions/deposit';
+import { createUserPresignSettlementTransactionAndSerializeToString } from '../solana-js/instructions/settlement';
+import { createAssociatedTokenAccountInstructionIfNeeded } from '../solana-js/instructions/helpers';
+import { getTradeInput } from '../solana-js/utils/param_utils';
+import { createClaimAndRefundAtaAndProtocolAtaIfNeededInstructions } from '../solana-js/instructions/claim';
+import { createSetTotalFeeInstructions } from '../solana-js/instructions/set_total_fee';
+import { createAddOperatorInstruction } from '../solana-js/instructions/manage_operator';
+import { WSOL_MINT } from '../solana-js/constants';
+import { createAddFeeReceiverInstruction, createAddOrUpdateWhitelistInstruction } from '../solana-js/instructions/manage_config';
 import { SystemProgram } from '@solana/web3.js';
-import { getTradeDetailData } from '../petafi-solana-js/pda/get_pda_data';
-import { createCloseFinishedTradeInstructions } from '../petafi-solana-js/instructions/close_finished_trade';
-import { bigintToBytes32 } from '../petafi-solana-js/utils/parse_utils';
-import { createReceiverAtaIfNeededAndWithdrawTotalFeeInstruction } from '../petafi-solana-js/instructions/withdraw_total_fee';
-import { InvalidParamError } from '../petafi-solana-js/errors/invalid_param_error';
+import { getTradeDetailData } from '../solana-js/pda/get_pda_data';
+import { createCloseFinishedTradeInstructions } from '../solana-js/instructions/close_finished_trade';
+import { bigintToBytes32 } from '../solana-js/utils/parse_utils';
+import { createReceiverAtaIfNeededAndWithdrawTotalFeeInstruction } from '../solana-js/instructions/withdraw_total_fee';
+import { InvalidParamError } from '../solana-js/errors/invalid_param_error';
 
 dotenv.config();
 
 let anchorProvider: anchor.AnchorProvider;
 
-describe('bitfi-sol-smartcontract', () => {
+describe('Withdraw total fee', () => {
   // Configure the client to use the local cluster.
   anchorProvider = anchor.AnchorProvider.env();
   anchor.setProvider(anchorProvider);
 
   const program = anchor.workspace
-    .PetaFiSolSmartcontract as Program<PetaFiSolSmartcontract>;
+    .OptimexSolSmartcontract as Program<OptimexSolSmartcontract>;
 
   const connection = new Connection('http://127.0.0.1:8899', { commitment: 'confirmed' });
   const deployer = (anchorProvider.wallet as anchor.Wallet).payer;
@@ -74,7 +74,7 @@ describe('bitfi-sol-smartcontract', () => {
 
     it('Should success when deployer init', async () => {
       const vaultPda = getVaultPda();
-      const instructions = await createInitializePetaFiInstructions({ signer: deployer.publicKey, connection, admin: deployer.publicKey });
+      const instructions = await createInitializeProgramInstructions({ signer: deployer.publicKey, connection, admin: deployer.publicKey });
       const transaction = new Transaction().add(...instructions);
       transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
       try {
@@ -89,7 +89,7 @@ describe('bitfi-sol-smartcontract', () => {
 
       expect(
         vaultPdaAccountInfo.owner.toString() === program.programId.toString(),
-        'Expect owner of vault pda is PetaFi smart-contract'
+        'Expect owner of vault pda is program smart-contract'
       ).to.be.true;
 
       let protocolPdaAccountInfo = await connection.getAccountInfo(protocolPda);
@@ -97,7 +97,7 @@ describe('bitfi-sol-smartcontract', () => {
       expect(
         protocolPdaAccountInfo.owner.toString() ===
         program.programId.toString(),
-        'Expect owner of protocol pda is PetaFi smart-contract'
+        'Expect owner of protocol pda is program smart-contract'
       ).to.be.true;
     });
 
@@ -131,7 +131,7 @@ describe('bitfi-sol-smartcontract', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: WSOL_MINT,
-        amount: '0.001',
+        amount: 0.001 * LAMPORTS_PER_SOL,
         connection: connection,
       });
       const transaction = new Transaction().add(...addWhitelistIns);
@@ -147,15 +147,15 @@ describe('bitfi-sol-smartcontract', () => {
     const refundKey = Keypair.generate();
     const sessionId = BigInt(keccak256(toUtf8Bytes(crypto.randomUUID())));
     const [fromToken, toToken] = createTokenPair();
-    const amount = 0.05;
-    const feeAmount = 0.01;
-    const smallFee = 0.0001;
+    const amount = 0.05 * LAMPORTS_PER_SOL;
+    const feeAmount = 0.01 * LAMPORTS_PER_SOL;
+    const smallFee = 0.0001 * LAMPORTS_PER_SOL;
     const depositParams = {
       sessionId,
       userPubkey: user.publicKey,
       mpcPubkey: mpc.publicKey,
       userEphemeralPubkey: userEphemeralKey.publicKey,
-      amount: amount.toString(),
+      amount: amount,
       connection: connection,
       scriptTimeout: Math.floor(Date.now() / 1000) + 3000,
       fromToken,
@@ -183,12 +183,12 @@ describe('bitfi-sol-smartcontract', () => {
       }
 
       const afterVaultBalance = await connection.getBalance(vaultPda, { commitment: 'confirmed' });
-      assert.equal(afterVaultBalance - beforeVaultBalance, rentForSpace8 + amount * LAMPORTS_PER_SOL, 'Vault balance should increase by the amount of SOL deposited and init fee');
+      assert.equal(afterVaultBalance - beforeVaultBalance, rentForSpace8 + amount, 'Vault balance should increase by the amount of SOL deposited and init fee');
 
       const userTradeDetail = getUserTradeDetailPda(tradeId);
       const userTradeDetailData = await program.account.tradeDetail.fetch(userTradeDetail);
       assert.equal(userTradeDetailData.tradeId.toString(), bigintToBytes32(BigInt(tradeId)).toString(), 'User trade detail tradeId should be the tradeId');
-      assert.equal(userTradeDetailData.amount.toNumber(), amount * LAMPORTS_PER_SOL, 'User trade detail amount should be the amount of SOL deposited');
+      assert.equal(userTradeDetailData.amount.toNumber(), amount, 'User trade detail amount should be the amount of SOL deposited');
       assert.equal(userTradeDetailData.mpcPubkey.toBase58(), mpc.publicKey.toBase58(), 'User trade detail mpc pubkey should be the mpc pubkey');
       assert.equal(userTradeDetailData.refundPubkey.toBase58(), refundKey.publicKey.toBase58(), 'User trade detail refund pubkey should be the refund pubkey');
       assert.equal(userTradeDetailData.userPubkey.toBase58(), user.publicKey.toBase58(), 'User trade detail user pubkey should be the user pubkey');
@@ -201,7 +201,7 @@ describe('bitfi-sol-smartcontract', () => {
       const { tradeId } = await getTradeInput(depositParams);
       const setFeeIns = await createSetTotalFeeInstructions({
         tradeId,
-        amount: feeAmount.toString(),
+        amount: feeAmount,
         connection,
         mpcPubkey: mpc.publicKey,
       })
@@ -215,7 +215,7 @@ describe('bitfi-sol-smartcontract', () => {
 
       const userTradeDetail = getUserTradeDetailPda(tradeId);
       const userTradeDetailData = await program.account.tradeDetail.fetch(userTradeDetail);
-      assert.equal(userTradeDetailData.totalFee.toNumber(), feeAmount * LAMPORTS_PER_SOL, 'User protocol fee amount should be the fee amount');
+      assert.equal(userTradeDetailData.totalFee.toNumber(), feeAmount, 'User protocol fee amount should be the fee amount');
     });
 
     it(`Should settle and transfer fee successfully`, async () => {
@@ -249,8 +249,8 @@ describe('bitfi-sol-smartcontract', () => {
       }
       const afterVaultBalance = await connection.getBalance(vaultPda, { commitment: 'confirmed' });
       const afterProtocolVaultBalance = await connection.getBalance(protocolPda, { commitment: 'confirmed' });
-      assert.equal(beforeVaultBalance - afterVaultBalance, amount * LAMPORTS_PER_SOL, 'Vault balance should increase by the amount of SOL deposited');
-      assert.equal(afterProtocolVaultBalance - beforeProtocolVaultBalance, feeAmount * LAMPORTS_PER_SOL, 'Protocol vault balance should increase by the amount of SOL deposited');
+      assert.equal(beforeVaultBalance - afterVaultBalance, amount, 'Vault balance should increase by the amount of SOL deposited');
+      assert.equal(afterProtocolVaultBalance - beforeProtocolVaultBalance, feeAmount, 'Protocol vault balance should increase by the amount of SOL deposited');
       const userTradeDetailData = await getTradeDetailData(tradeId, connection);
       assert.isObject(userTradeDetailData.status.settled, 'User trade detail status should be settled');
       assert.equal(userTradeDetailData.settledPmm.toBase58(), pmmKey.publicKey.toBase58(), 'User trade detail settled pmm should be the pmm pubkey');
@@ -274,7 +274,7 @@ describe('bitfi-sol-smartcontract', () => {
           .rpc({ commitment: 'confirmed' })
           assert.fail('Should not reach here');
       } catch (error) {
-        assert.ok(error.toString().includes('InvalidRefundPubkey'), 'Should return InvalidRefundPubkey error');
+        assert.ok(error.toString().includes('InvalidFeeReceiver'), 'Should return InvalidRefundPubkey error');
       }
     })
 
@@ -328,7 +328,7 @@ describe('bitfi-sol-smartcontract', () => {
         token: null,
         receiverPubkey: feeReceiver.publicKey,
         signer: operator.publicKey,
-        amount: smallFee.toString(),
+        amount: smallFee,
       });
       const beforeProtocolBalance = await connection.getBalance(protocolPda, { commitment: 'confirmed' });
       const beforeFeeReceiverBalance = await connection.getBalance(feeReceiver.publicKey, { commitment: 'confirmed' });
@@ -341,8 +341,8 @@ describe('bitfi-sol-smartcontract', () => {
       }
       const afterProtocolBalance = await connection.getBalance(protocolPda, { commitment: 'confirmed' });
       const afterFeeReceiverBalance = await connection.getBalance(feeReceiver.publicKey, { commitment: 'confirmed' });
-      assert.equal(beforeProtocolBalance - afterProtocolBalance, smallFee * LAMPORTS_PER_SOL, 'The protocol balance should decrease by the amount of fee');
-      assert.equal(afterFeeReceiverBalance - beforeFeeReceiverBalance, smallFee * LAMPORTS_PER_SOL, 'The fee receiver balance should increase by the amount of fee');
+      assert.equal(beforeProtocolBalance - afterProtocolBalance, smallFee, 'The protocol balance should decrease by the amount of fee');
+      assert.equal(afterFeeReceiverBalance - beforeFeeReceiverBalance, smallFee, 'The fee receiver balance should increase by the amount of fee');
     })
 
     it('Should withdraw fee error when withdraw too much SOL', async () => {
@@ -365,14 +365,14 @@ describe('bitfi-sol-smartcontract', () => {
     })
 
     it('Should withdraw fee error when create instruction to withdraw too much SOL', async () => {
-      const protocolBalance = await connection.getBalance(protocolPda, { commitment: 'confirmed' }) / LAMPORTS_PER_SOL;
+      const protocolBalance = await connection.getBalance(protocolPda, { commitment: 'confirmed' });
       try { 
         const withdrawTotalFeeIns = await createReceiverAtaIfNeededAndWithdrawTotalFeeInstruction({
           connection,
           token: null,
           receiverPubkey: feeReceiver.publicKey,
           signer: operator.publicKey,
-          amount: String(protocolBalance),
+          amount: protocolBalance,
         });
       } catch (error) {
         expect(error).to.be.instanceOf(InvalidParamError);
@@ -400,8 +400,8 @@ describe('bitfi-sol-smartcontract', () => {
       }
       const afterProtocolBalance = await connection.getBalance(protocolPda, { commitment: 'confirmed' });
       const afterFeeReceiverBalance = await connection.getBalance(feeReceiver.publicKey, { commitment: 'confirmed' });
-      assert.equal(beforeProtocolBalance - afterProtocolBalance, (feeAmount - smallFee) * LAMPORTS_PER_SOL, 'The protocol balance should decrease by the amount of fee');
-      assert.equal(afterFeeReceiverBalance - beforeFeeReceiverBalance, (feeAmount - smallFee) * LAMPORTS_PER_SOL, 'The fee receiver balance should increase by the amount of fee');
+      assert.equal(beforeProtocolBalance - afterProtocolBalance, (feeAmount - smallFee), 'The protocol balance should decrease by the amount of fee');
+      assert.equal(afterFeeReceiverBalance - beforeFeeReceiverBalance, (feeAmount - smallFee), 'The fee receiver balance should increase by the amount of fee');
     })
   });
 
@@ -412,9 +412,9 @@ describe('bitfi-sol-smartcontract', () => {
     const refundKey = Keypair.generate();
     const pmmKey = Keypair.generate();
     const [fromToken, toToken] = createTokenPair(tokenMint.toBase58());
-    const amount = 0.1;
-    const feeAmount = 0.01;
-    const smallFee = 0.0001;
+    const amount = 0.1 * LAMPORTS_PER_SOL;
+    const feeAmount = 0.01 * LAMPORTS_PER_SOL;
+    const smallFee = 0.0001 * LAMPORTS_PER_SOL;
     const sessionId = BigInt(keccak256(toUtf8Bytes(crypto.randomUUID())));
     const wrapSolTx = new Transaction().add(
       createAssociatedTokenAccountInstruction(
@@ -437,7 +437,7 @@ describe('bitfi-sol-smartcontract', () => {
       userPubkey: user.publicKey,
       mpcPubkey: mpc.publicKey,
       userEphemeralPubkey: userEphemeralKey.publicKey,
-      amount: amount.toString(),
+      amount: amount,
       connection: anchorProvider.connection,
       scriptTimeout: Math.floor(Date.now() / 1000) + 3000,
       fromToken,
@@ -460,7 +460,7 @@ describe('bitfi-sol-smartcontract', () => {
       // const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
       //   operator: operator.publicKey,
       //   token: tokenMint,
-      //   amount: '0.001',
+      //   amount: 0.001 * LAMPORTS_PER_SOL,
       //   connection: connection,
       // });
       // const addWhitelistTransaction = new Transaction().add(...addWhitelistIns);
@@ -489,11 +489,11 @@ describe('bitfi-sol-smartcontract', () => {
       }
 
       const afterUserTokenBalance = await getTokenBalance(connection, tokenMint, user.publicKey);
-      assert.equal(beforeUserTokenBalance - afterUserTokenBalance, amount * 10 ** 9, 'User token balance should decrease by the amount of token deposited');
+      assert.equal(beforeUserTokenBalance - afterUserTokenBalance, amount, 'User token balance should decrease by the amount of token deposited');
       const { tradeId } = await getTradeInput(depositParams);
       const userTradeDetail = getUserTradeDetailPda(tradeId);
       const userTradeDetailData = await program.account.tradeDetail.fetch(userTradeDetail);
-      assert.equal(userTradeDetailData.amount.toNumber(), amount * 10 ** 9, 'User trade detail amount should be the amount of token deposited');
+      assert.equal(userTradeDetailData.amount.toNumber(), amount, 'User trade detail amount should be the amount of token deposited');
       assert.equal(userTradeDetailData.mpcPubkey.toBase58(), mpc.publicKey.toBase58(), 'User trade detail mpc pubkey should be the mpc pubkey');
       assert.equal(userTradeDetailData.refundPubkey.toBase58(), refundKey.publicKey.toBase58(), 'User trade detail refund pubkey should be the refund pubkey');
       assert.equal(userTradeDetailData.userPubkey.toBase58(), user.publicKey.toBase58(), 'User trade detail user pubkey should be the user pubkey');
@@ -505,7 +505,7 @@ describe('bitfi-sol-smartcontract', () => {
       const { tradeId } = await getTradeInput(depositParams);
       const setFeeIns = await createSetTotalFeeInstructions({
         tradeId: tradeId,
-        amount: feeAmount.toString(),
+        amount: feeAmount,
         mpcPubkey: mpc.publicKey,
         connection: connection,
       })
@@ -519,7 +519,7 @@ describe('bitfi-sol-smartcontract', () => {
 
       const userTradeDetail = getUserTradeDetailPda(tradeId);
       const userTradeDetailData = await program.account.tradeDetail.fetch(userTradeDetail);
-      assert.equal(userTradeDetailData.totalFee.toNumber(), feeAmount * LAMPORTS_PER_SOL, 'User protocol fee amount should be the fee amount');
+      assert.equal(userTradeDetailData.totalFee.toNumber(), feeAmount, 'User protocol fee amount should be the fee amount');
     });
 
     it(`Should setlle successfully`, async () => {
@@ -553,8 +553,8 @@ describe('bitfi-sol-smartcontract', () => {
       }
       const afterVaultBalance = await getTokenBalance(connection, tokenMint, vaultPda);
       const afterProtocolVaultBalance = await getTokenBalance(connection, tokenMint, protocolPda);
-      assert.equal(beforeVaultBalance - afterVaultBalance, amount * 10 ** 9, 'Vault balance should decrease by the amount of token deposited');
-      assert.equal(afterProtocolVaultBalance - beforeProtocolVaultBalance, feeAmount * 10 ** 9, 'Protocol vault balance should increase by the fee amount amount of token setup');
+      assert.equal(beforeVaultBalance - afterVaultBalance, amount, 'Vault balance should decrease by the amount of token deposited');
+      assert.equal(afterProtocolVaultBalance - beforeProtocolVaultBalance, feeAmount, 'Protocol vault balance should increase by the fee amount amount of token setup');
     })
 
     it('Should withdraw a small fee successfully', async () => {
@@ -563,7 +563,7 @@ describe('bitfi-sol-smartcontract', () => {
         token: WSOL_MINT,
         receiverPubkey: feeReceiver.publicKey,
         signer: operator.publicKey,
-        amount: smallFee.toString(),
+        amount: smallFee,
       });
       const beforeProtocolBalance = await getTokenBalance(connection, WSOL_MINT, protocolPda);
       const beforeFeeReceiverBalance = await getTokenBalance(connection, WSOL_MINT, feeReceiver.publicKey);
@@ -576,8 +576,8 @@ describe('bitfi-sol-smartcontract', () => {
       }
       const afterProtocolBalance = await getTokenBalance(connection, WSOL_MINT, protocolPda);
       const afterFeeReceiverBalance = await getTokenBalance(connection, WSOL_MINT, feeReceiver.publicKey);
-      assert.equal(beforeProtocolBalance - afterProtocolBalance, smallFee * LAMPORTS_PER_SOL, 'The protocol balance should decrease by the amount of fee');
-      assert.equal(afterFeeReceiverBalance - beforeFeeReceiverBalance, smallFee * LAMPORTS_PER_SOL, 'The fee receiver balance should increase by the amount of fee');
+      assert.equal(beforeProtocolBalance - afterProtocolBalance, smallFee, 'The protocol balance should decrease by the amount of fee');
+      assert.equal(afterFeeReceiverBalance - beforeFeeReceiverBalance, smallFee, 'The fee receiver balance should increase by the amount of fee');
     })
 
     it('Should withdraw total fee successfully', async () => {
@@ -599,8 +599,8 @@ describe('bitfi-sol-smartcontract', () => {
       }
       const afterProtocolBalance = await getTokenBalance(connection, WSOL_MINT, protocolPda);
       const afterFeeReceiverBalance = await getTokenBalance(connection, WSOL_MINT, feeReceiver.publicKey);
-      assert.equal(beforeProtocolBalance - afterProtocolBalance, (feeAmount - smallFee) * 10**9, 'The protocol balance should decrease by the amount of fee');
-      assert.equal(afterFeeReceiverBalance - beforeFeeReceiverBalance, (feeAmount - smallFee) * 10**9, 'The fee receiver balance should increase by the amount of fee');
+      assert.equal(beforeProtocolBalance - afterProtocolBalance, (feeAmount - smallFee), 'The protocol balance should decrease by the amount of fee');
+      assert.equal(afterFeeReceiverBalance - beforeFeeReceiverBalance, (feeAmount - smallFee), 'The fee receiver balance should increase by the amount of fee');
     })
   });
 });

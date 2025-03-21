@@ -1,6 +1,6 @@
 import * as anchor from '@coral-xyz/anchor';
 import { Program } from '@coral-xyz/anchor';
-import { PetaFiSolSmartcontract } from '../target/types/peta_fi_sol_smartcontract';
+import { OptimexSolSmartcontract } from '../target/types/optimex_sol_smartcontract';
 import {
   ComputeBudgetProgram,
   Connection,
@@ -24,35 +24,35 @@ import {
   createSyncNativeInstruction,
   getAssociatedTokenAddressSync,
 } from '@solana/spl-token';
-import { getProtocolPda, getTradeVaultPda, getUserTradeDetailPda, getVaultPda, getWhitelistPda } from '../petafi-solana-js/pda/get_pda_address';
-import { createInitializePetaFiInstructions } from '../petafi-solana-js/instructions/intialize';
-import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions, DepositInstructionParam } from '../petafi-solana-js/instructions/deposit';
-import { createNonceAdvanceAndSettlementInstruction, createUserPresignSettlementTransactionAndSerializeToString } from '../petafi-solana-js/instructions/settlement';
-import { createAssociatedTokenAccountInstructionIfNeeded, verifyPresignSettlement } from '../petafi-solana-js/instructions/helpers';
-import { getTradeInput } from '../petafi-solana-js/utils/param_utils';
-import { createClaimAndRefundAtaAndProtocolAtaIfNeededInstructions } from '../petafi-solana-js/instructions/claim';
-import { createSetTotalFeeInstructions } from '../petafi-solana-js/instructions/set_total_fee';
-import { createAddOperatorInstruction } from '../petafi-solana-js/instructions/manage_operator';
-import { WSOL_MINT } from '../petafi-solana-js/constants';
-import { createAddOrUpdateWhitelistInstruction } from '../petafi-solana-js/instructions/manage_config';
+import { getProtocolPda, getTradeVaultPda, getUserTradeDetailPda, getVaultPda, getWhitelistPda } from '../solana-js/pda/get_pda_address';
+import { createInitializeProgramInstructions } from '../solana-js/instructions/intialize';
+import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions, DepositInstructionParam } from '../solana-js/instructions/deposit';
+import { createNonceAdvanceAndSettlementInstruction, createUserPresignSettlementTransactionAndSerializeToString } from '../solana-js/instructions/settlement';
+import { createAssociatedTokenAccountInstructionIfNeeded, verifyPresignSettlement } from '../solana-js/instructions/helpers';
+import { getTradeInput } from '../solana-js/utils/param_utils';
+import { createClaimAndRefundAtaAndProtocolAtaIfNeededInstructions } from '../solana-js/instructions/claim';
+import { createSetTotalFeeInstructions } from '../solana-js/instructions/set_total_fee';
+import { createAddOperatorInstruction } from '../solana-js/instructions/manage_operator';
+import { WSOL_MINT } from '../solana-js/constants';
+import { createAddOrUpdateWhitelistInstruction } from '../solana-js/instructions/manage_config';
 import { SystemProgram } from '@solana/web3.js';
-import { getTradeDetailData } from '../petafi-solana-js/pda/get_pda_data';
-import { createCloseFinishedTradeInstructions } from '../petafi-solana-js/instructions/close_finished_trade';
-import { bigintToBytes32 } from '../petafi-solana-js/utils/parse_utils';
+import { getTradeDetailData } from '../solana-js/pda/get_pda_data';
+import { createCloseFinishedTradeInstructions } from '../solana-js/instructions/close_finished_trade';
+import { bigintToBytes32 } from '../solana-js/utils/parse_utils';
 import nacl from 'tweetnacl';
-import { InvalidPresignStringError } from '../petafi-solana-js/errors';
+import { InvalidPresignStringError } from '../solana-js/errors';
 
 dotenv.config();
 
 let anchorProvider: anchor.AnchorProvider;
 
-describe('bitfi-sol-smartcontract', () => {
+describe('Verify presign settlement', () => {
   // Configure the client to use the local cluster.
   anchorProvider = anchor.AnchorProvider.env();
   anchor.setProvider(anchorProvider);
 
   const program = anchor.workspace
-    .PetaFiSolSmartcontract as Program<PetaFiSolSmartcontract>;
+    .OptimexSolSmartcontract as Program<OptimexSolSmartcontract>;
 
   const connection = new Connection('http://127.0.0.1:8899', { commitment: 'confirmed' });
   const deployer = (anchorProvider.wallet as anchor.Wallet).payer;
@@ -74,7 +74,7 @@ describe('bitfi-sol-smartcontract', () => {
 
     it('Should success when deployer init', async () => {
       const vaultPda = getVaultPda();
-      const instructions = await createInitializePetaFiInstructions({ signer: deployer.publicKey, connection, admin: deployer.publicKey });
+      const instructions = await createInitializeProgramInstructions({ signer: deployer.publicKey, connection, admin: deployer.publicKey });
       const transaction = new Transaction().add(...instructions);
       transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
       try {
@@ -89,7 +89,7 @@ describe('bitfi-sol-smartcontract', () => {
 
       expect(
         vaultPdaAccountInfo.owner.toString() === program.programId.toString(),
-        'Expect owner of vault pda is PetaFi smart-contract'
+        'Expect owner of vault pda is optimex smart-contract'
       ).to.be.true;
 
       let protocolPdaAccountInfo = await connection.getAccountInfo(protocolPda);
@@ -97,7 +97,7 @@ describe('bitfi-sol-smartcontract', () => {
       expect(
         protocolPdaAccountInfo.owner.toString() ===
         program.programId.toString(),
-        'Expect owner of protocol pda is PetaFi smart-contract'
+        'Expect owner of protocol pda is optimex smart-contract'
       ).to.be.true;
     });
 
@@ -118,7 +118,7 @@ describe('bitfi-sol-smartcontract', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: WSOL_MINT,
-        amount: '0.001',
+        amount: 0.001 * LAMPORTS_PER_SOL,
         connection: connection,
       });
       const transaction = new Transaction().add(...addWhitelistIns);
@@ -134,7 +134,7 @@ describe('bitfi-sol-smartcontract', () => {
     const refundKey = Keypair.generate();
     const sessionId = BigInt(keccak256(toUtf8Bytes(crypto.randomUUID())));
     const [fromToken, toToken] = createTokenPair();
-    const amount = 0.05;
+    const amount = 0.05 * LAMPORTS_PER_SOL;
     let settlementPresign: string;
     let secondPresign: string;
     const depositParams = {
@@ -142,7 +142,7 @@ describe('bitfi-sol-smartcontract', () => {
       userPubkey: user.publicKey,
       mpcPubkey: mpc.publicKey,
       userEphemeralPubkey: userEphemeralKey.publicKey,
-      amount: amount.toString(),
+      amount: amount,
       connection: connection,
       scriptTimeout: Math.floor(Date.now() / 1000) + 3000,
       fromToken,
@@ -169,11 +169,11 @@ describe('bitfi-sol-smartcontract', () => {
       }
 
       const afterVaultBalance = await connection.getBalance(vaultPda, { commitment: 'confirmed' });
-      assert.equal(afterVaultBalance - beforeVaultBalance, rentForSpace8 + amount * LAMPORTS_PER_SOL, 'Vault balance should increase by the amount of SOL deposited and init fee');
+      assert.equal(afterVaultBalance - beforeVaultBalance, rentForSpace8 + amount, 'Vault balance should increase by the amount of SOL deposited and init fee');
 
       const userTradeDetail = getUserTradeDetailPda(tradeId);
       const userTradeDetailData = await program.account.tradeDetail.fetch(userTradeDetail);
-      assert.equal(userTradeDetailData.amount.toNumber(), amount * LAMPORTS_PER_SOL, 'User trade detail amount should be the amount of SOL deposited');
+      assert.equal(userTradeDetailData.amount.toNumber(), amount, 'User trade detail amount should be the amount of SOL deposited');
       assert.equal(userTradeDetailData.mpcPubkey.toBase58(), mpc.publicKey.toBase58(), 'User trade detail mpc pubkey should be the mpc pubkey');
       assert.equal(userTradeDetailData.refundPubkey.toBase58(), refundKey.publicKey.toBase58(), 'User trade detail refund pubkey should be the refund pubkey');
       assert.equal(userTradeDetailData.userPubkey.toBase58(), user.publicKey.toBase58(), 'User trade detail user pubkey should be the user pubkey');
@@ -418,14 +418,14 @@ describe('bitfi-sol-smartcontract', () => {
     const refundKey = Keypair.generate();
     const pmmKey = Keypair.generate();
     const [fromToken, toToken] = createTokenPair(tokenMint.toBase58());
-    const amount = 100;
+    const amount = 100 * 10**9;
     const sessionId = BigInt(keccak256(toUtf8Bytes(crypto.randomUUID())));
     const depositParams = {
       sessionId,
       userPubkey: user.publicKey,
       mpcPubkey: mpc.publicKey,
       userEphemeralPubkey: userEphemeralKey.publicKey,
-      amount: amount.toString(),
+      amount: amount,
       connection: anchorProvider.connection,
       scriptTimeout: Math.floor(Date.now() / 1000) + 3000,
       fromToken,
@@ -457,7 +457,7 @@ describe('bitfi-sol-smartcontract', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: tokenMint,
-        amount: '0.001',
+        amount: 0.001 * LAMPORTS_PER_SOL,
         connection: connection,
       });
 
@@ -487,11 +487,11 @@ describe('bitfi-sol-smartcontract', () => {
       }
 
       const afterUserTokenBalance = await getTokenBalance(connection, tokenMint, user.publicKey);
-      assert.equal(beforeUserTokenBalance - afterUserTokenBalance, amount * 10 ** 9, 'User token balance should decrease by the amount of token deposited');
+      assert.equal(beforeUserTokenBalance - afterUserTokenBalance, amount, 'User token balance should decrease by the amount of token deposited');
       ({ tradeId } = await getTradeInput(depositParams));
       const userTradeDetail = getUserTradeDetailPda(tradeId);
       const userTradeDetailData = await program.account.tradeDetail.fetch(userTradeDetail);
-      assert.equal(userTradeDetailData.amount.toNumber(), amount * 10 ** 9, 'User trade detail amount should be the amount of token deposited');
+      assert.equal(userTradeDetailData.amount.toNumber(), amount, 'User trade detail amount should be the amount of token deposited');
       assert.equal(userTradeDetailData.mpcPubkey.toBase58(), mpc.publicKey.toBase58(), 'User trade detail mpc pubkey should be the mpc pubkey');
       assert.equal(userTradeDetailData.refundPubkey.toBase58(), refundKey.publicKey.toBase58(), 'User trade detail refund pubkey should be the refund pubkey');
       assert.equal(userTradeDetailData.userPubkey.toBase58(), user.publicKey.toBase58(), 'User trade detail user pubkey should be the user pubkey');

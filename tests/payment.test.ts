@@ -1,6 +1,6 @@
 import * as anchor from '@coral-xyz/anchor';
 import { Program } from '@coral-xyz/anchor';
-import { PetaFiSolSmartcontract } from '../target/types/peta_fi_sol_smartcontract';
+import { OptimexSolSmartcontract } from '../target/types/optimex_sol_smartcontract';
 import {
   Keypair,
   LAMPORTS_PER_SOL,
@@ -16,25 +16,25 @@ import _ from 'lodash';
 import {
   createMint,
 } from '@solana/spl-token';
-import { createPaymentAndRefundAtaAndProtocolAtaIfNeededInstructions } from '../petafi-solana-js/instructions/payment';
+import { createPaymentAndRefundAtaAndProtocolAtaIfNeededInstructions } from '../solana-js/instructions/payment';
 import { bigintToBytes32, delay, getBlockTime } from '../scripts/utils/helper';
-import { createAddOperatorInstruction } from '../petafi-solana-js/instructions/manage_operator';
-import { createAddOrUpdateWhitelistInstruction, createSetCloseWaitDurationInstruction } from '../petafi-solana-js/instructions/manage_config';
-import { WSOL_MINT } from '../petafi-solana-js/constants';
-import { getPaymentReceiptPda } from '../petafi-solana-js/pda/get_pda_address';
-import { getPaymentReceiptAddresses, getPaymentReceiptData } from '../petafi-solana-js/pda/get_pda_data';
-import { createClosePaymentReceiptInstructions } from '../petafi-solana-js/instructions/close_payment_receipt';
+import { createAddOperatorInstruction } from '../solana-js/instructions/manage_operator';
+import { createAddOrUpdateWhitelistInstruction, createSetCloseWaitDurationInstruction } from '../solana-js/instructions/manage_config';
+import { WSOL_MINT } from '../solana-js/constants';
+import { getPaymentReceiptPda } from '../solana-js/pda/get_pda_address';
+import { getPaymentReceiptAddresses, getPaymentReceiptData } from '../solana-js/pda/get_pda_data';
+import { createClosePaymentReceiptInstructions } from '../solana-js/instructions/close_payment_receipt';
 
 dotenv.config();
 
-type TradeDetail = anchor.IdlTypes<PetaFiSolSmartcontract>['tradeDetail'];
+type TradeDetail = anchor.IdlTypes<OptimexSolSmartcontract>['tradeDetail'];
 
 describe('Payment() functional testing', () => {
   // Configure the client to use the local cluster.
   anchor.setProvider(anchor.AnchorProvider.env());
 
   const program = anchor.workspace
-    .PetaFiSolSmartcontract as Program<PetaFiSolSmartcontract>;
+    .OptimexSolSmartcontract as Program<OptimexSolSmartcontract>;
 
   const anchorProvider = program.provider as anchor.AnchorProvider;
   const connection = anchorProvider.connection;
@@ -91,7 +91,7 @@ describe('Payment() functional testing', () => {
       const instructions = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: WSOL_MINT,
-        amount: '0.001',
+        amount: 0.001 * LAMPORTS_PER_SOL,
         connection: connection,
       });
       const transaction = new Transaction().add(...instructions);
@@ -128,8 +128,8 @@ describe('Payment() functional testing', () => {
         toUser: Keypair.generate().publicKey,
         tradeId,
         token: null,
-        amount: '1',
-        totalFee: '0.1',
+        amount: 10,
+        totalFee: 1,
         deadline: 0,
         connection,
       });
@@ -151,8 +151,8 @@ describe('Payment() functional testing', () => {
         toUser: Keypair.generate().publicKey,
         tradeId,
         token: null,
-        amount: '0',
-        totalFee: '0',
+        amount: 0,
+        totalFee: 0,
         deadline: currentTime + 3000,
         connection,
       });
@@ -177,8 +177,8 @@ describe('Payment() functional testing', () => {
         toUser: Keypair.generate().publicKey,
         tradeId,
         token: null,
-        amount: '100',
-        totalFee: '110',
+        amount: 100,
+        totalFee: 110,
         deadline: currentTime + 3000,
         connection,
       });
@@ -196,8 +196,8 @@ describe('Payment() functional testing', () => {
   describe('Payment with SOL', () => {
     const newAccount = Keypair.generate();
     it('Should succeed', async () => {
-      const amount = '0.1';
-      const pFee = '0.0001';
+      const amount = 0.1 * 10**9;
+      const pFee = 0.0001 * 10**9;
 
       // create another wallet (account)
       const tradeId = sha256('0x11');
@@ -237,22 +237,21 @@ describe('Payment() functional testing', () => {
         token: null,
         amount,
         protocolFee: pFee,
-        tokenDecimals: 9,
       });
       const paymentReceiptBalance = await connection.getBalance(paymentReceiptPda, 'confirmed');
       const afterFromUserBalance = await connection.getBalance(user.publicKey, 'confirmed');
       const afterToUserBalance = await connection.getBalance(newAccount.publicKey, 'confirmed');
       const afterProtocolBalance = await connection.getBalance(protocolPda, 'confirmed');
-      assert.equal(beforeFromUserBalance - afterFromUserBalance, Number(amount) * 10 ** 9 + paymentReceiptBalance, 'From user balance should be decreased');
-      assert.equal(afterToUserBalance - beforeToUserBalance, (Number(amount) - Number(pFee)) * 10 ** 9, 'To user balance should be increased');
-      assert.equal(afterProtocolBalance - beforeProtocolBalance, Number(pFee) * 10 ** 9, 'Protocol balance should be increased');
+      assert.equal(beforeFromUserBalance - afterFromUserBalance, Number(amount) + paymentReceiptBalance, 'From user balance should be decreased');
+      assert.equal(afterToUserBalance - beforeToUserBalance, (Number(amount) - Number(pFee)), 'To user balance should be increased');
+      assert.equal(afterProtocolBalance - beforeProtocolBalance, Number(pFee), 'Protocol balance should be increased');
 
       const paymentReceiptData = await getPaymentReceiptData(paymentReceiptPda, connection);
       assert.equal(paymentReceiptData.fromPubkey.toBase58(), user.publicKey.toBase58(), 'From user should be the same');
       assert.equal(paymentReceiptData.toPubkey.toBase58(), newAccount.publicKey.toBase58(), 'To user should be the same');
       assert.equal(paymentReceiptData.tradeId.toString(), bigintToBytes32(BigInt(tradeId)).toString(), 'Trade id should be the same');
-      assert.equal(paymentReceiptData.totalFee.toNumber(), Number(pFee) * 10 ** 9, 'Protocol fee should be the same');
-      assert.equal(paymentReceiptData.paymentAmount.toNumber(), Number(amount) * 10 ** 9, 'Amount should be the same');
+      assert.equal(paymentReceiptData.totalFee.toNumber(), Number(pFee), 'Protocol fee should be the same');
+      assert.equal(paymentReceiptData.paymentAmount.toNumber(), Number(amount), 'Amount should be the same');
       assert.equal(paymentReceiptData.paymentTime.toNumber(), txTime, 'Payment time should be the same');
       assert.isNull(paymentReceiptData.token, 'Token should be null');
     });
@@ -267,8 +266,8 @@ describe('Payment() functional testing', () => {
         toUser: newAccount.publicKey,
         tradeId,
         token: null,
-        amount: '0.1',
-        totalFee: '0.0001',
+        amount: 0.1 * 10**9,
+        totalFee: 0.0001 * 10**9,
         deadline: currentTime + 3000,
         connection,
       });
@@ -385,8 +384,8 @@ describe('Payment() functional testing', () => {
     let mint: PublicKey;
     let protocolAta: PublicKey;
     const newAccount = Keypair.generate();
-    const amount = '1000';
-    const pFee = '10';
+    const amount = 1000 * 10 ** 8;
+    const pFee = 10 * 10 ** 8;
     before(async () => {
       // create token for test
       mint = await createMint(
@@ -402,7 +401,7 @@ describe('Payment() functional testing', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: mint,
-        amount: '0.001',
+        amount: 0.001 * LAMPORTS_PER_SOL,
         connection,
       });
       const transaction = new Transaction().add(...addWhitelistIns);
@@ -431,6 +430,8 @@ describe('Payment() functional testing', () => {
       try {
         const transaction = new Transaction().add(...paymentInstructions);
         const tx = await sendAndConfirmTransaction(connection, transaction, [deployer], { commitment: 'confirmed' });
+        const parsedTransaction = await connection.getParsedTransaction(tx, 'confirmed');
+        console.log('Consumed ', parsedTransaction.meta.computeUnitsConsumed);
       } catch (error) {
         console.log(error);
         throw error;
@@ -439,9 +440,9 @@ describe('Payment() functional testing', () => {
       const afterFromUserBalance = await getTokenBalance(connection, mint, deployer.publicKey);
       const afterToUserBalance = await getTokenBalance(connection, mint, newAccount.publicKey);
       const afterProtocolBalance = await getTokenBalance(connection, mint, protocolPda);
-      assert.equal(beforeFromUserBalance - afterFromUserBalance, Number(amount) * 10 ** 8 , 'From user balance should be decreased');
-      assert.equal(afterToUserBalance - beforeToUserBalance, Number(amount) * 10 ** 8 - Number(pFee) * 10 ** 8, 'To user balance should be increased');
-      assert.equal(afterProtocolBalance - beforeProtocolBalance, Number(pFee) * 10 ** 8, 'Protocol balance should be increased');
+      assert.equal(beforeFromUserBalance - afterFromUserBalance, Number(amount), 'From user balance should be decreased');
+      assert.equal(afterToUserBalance - beforeToUserBalance, Number(amount) - Number(pFee), 'To user balance should be increased');
+      assert.equal(afterProtocolBalance - beforeProtocolBalance, Number(pFee), 'Protocol balance should be increased');
 
       const paymentReceiptPda = getPaymentReceiptPda({
         fromUser: deployer.publicKey,
@@ -450,15 +451,35 @@ describe('Payment() functional testing', () => {
         token: mint,
         amount,
         protocolFee: pFee,
-        tokenDecimals: 8,
       });
       const paymentReceiptData = await getPaymentReceiptData(paymentReceiptPda, connection);
       assert.equal(paymentReceiptData.fromPubkey.toBase58(), deployer.publicKey.toBase58(), 'From user should be the same');
       assert.equal(paymentReceiptData.toPubkey.toBase58(), newAccount.publicKey.toBase58(), 'To user should be the same');
       assert.equal(paymentReceiptData.tradeId.toString(), bigintToBytes32(BigInt(tradeId)).toString(), 'Trade id should be the same');
-      assert.equal(paymentReceiptData.totalFee.toNumber(), Number(pFee) * 10 ** 8, 'Protocol fee should be the same');
-      assert.equal(paymentReceiptData.paymentAmount.toNumber(), Number(amount) * 10 ** 8, 'Amount should be the same');
+      assert.equal(paymentReceiptData.totalFee.toNumber(), Number(pFee), 'Protocol fee should be the same');
+      assert.equal(paymentReceiptData.paymentAmount.toNumber(), Number(amount), 'Amount should be the same');
       assert.equal(paymentReceiptData.token.toBase58(), mint.toBase58(), 'Token should be the same');
+    });
+
+    it('Should close payment receipt success', async () => {
+      await sleep(7000);
+      const tradeId = sha256('0x11');
+      const paymentReceiptPda = (await getPaymentReceiptAddresses(connection, { tradeId }))[0];
+
+      const closePaymentReceiptIns = await createClosePaymentReceiptInstructions({
+        paymentReceipt: paymentReceiptPda.publicKey,
+        connection,
+      });
+
+      try {
+        const transaction = new Transaction().add(...closePaymentReceiptIns);
+        const tx = await sendAndConfirmTransaction(connection, transaction, [deployer], { commitment: 'confirmed' });
+        const parsedTransaction = await connection.getParsedTransaction(tx, 'confirmed');
+        console.log('Consumed closed payment ', parsedTransaction.meta.computeUnitsConsumed);
+      } catch (error) {
+        console.log(error);
+        throw error;
+      }
     });
 
     it('Should fail when do not have enough amount', async () => {

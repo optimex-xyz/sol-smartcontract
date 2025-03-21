@@ -1,5 +1,5 @@
 import * as anchor from '@coral-xyz/anchor';
-import { PetaFiSolSmartcontract } from '../target/types/peta_fi_sol_smartcontract';
+import { OptimexSolSmartcontract } from '../target/types/optimex_sol_smartcontract';
 import {
   AccountMeta,
   Keypair,
@@ -20,17 +20,17 @@ import {
   getAssociatedTokenAddress,
   TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
-import { bigintToBytes32, DepositInstructionParam, getProtocolPda, getTradeInput,  getVaultPda, TradeInput } from '../petafi-solana-js';
+import { bigintToBytes32, DepositInstructionParam, getProtocolPda } from '../solana-js/dist';
 import { delay } from '../scripts/utils/helper';
-import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions } from '../petafi-solana-js/instructions/deposit';
-import { createInitializePetaFiInstructions } from '../petafi-solana-js/instructions/intialize';
-import { createAddOperatorInstruction } from '../petafi-solana-js/instructions/manage_operator';
-import { createAddOrUpdateWhitelistInstruction } from '../petafi-solana-js/instructions/manage_config';
-import { createClaimAndRefundAtaAndProtocolAtaIfNeededInstructions } from '../petafi-solana-js/instructions/claim';
-import { WSOL_MINT } from '../petafi-solana-js/constants';
-import { getNonceCheckPda, getTradeVaultPda, getUserTradeDetailPda } from '../petafi-solana-js/pda/get_pda_address';
-import { getTradeDetailData } from '../petafi-solana-js/pda/get_pda_data';
-
+import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions } from '../solana-js/instructions/deposit';
+import { createInitializeProgramInstructions } from '../solana-js/instructions/intialize';
+import { createAddOperatorInstruction } from '../solana-js/instructions/manage_operator';
+import { createAddOrUpdateWhitelistInstruction } from '../solana-js/instructions/manage_config';
+import { createClaimAndRefundAtaAndProtocolAtaIfNeededInstructions } from '../solana-js/instructions/claim';
+import { WSOL_MINT } from '../solana-js/constants';
+import { getNonceCheckPda, getTradeVaultPda, getUserTradeDetailPda } from '../solana-js/pda/get_pda_address';
+import { getTradeDetailData } from '../solana-js/pda/get_pda_data';
+import { getTradeInput } from '../solana-js/utils/param_utils';
 dotenv.config();
 
 describe('Claim() functional testing', () => {
@@ -39,7 +39,7 @@ describe('Claim() functional testing', () => {
   anchor.setProvider(anchorProvider);
 
   const program = anchor.workspace
-    .PetaFiSolSmartcontract as anchor.Program<PetaFiSolSmartcontract>;
+    .OptimexSolSmartcontract as anchor.Program<OptimexSolSmartcontract>;
 
   const connection = anchorProvider.connection;
   const deployer = (anchorProvider.wallet as anchor.Wallet).payer;
@@ -51,7 +51,7 @@ describe('Claim() functional testing', () => {
 
   describe('Setup program', async () => {
     it('Deploy init success', async () => {
-      const instructions = await createInitializePetaFiInstructions({ signer: deployer.publicKey, connection, admin: deployer.publicKey });
+      const instructions = await createInitializeProgramInstructions({ signer: deployer.publicKey, connection, admin: deployer.publicKey });
       const transaction = new Transaction().add(...instructions);
       try {
         await sendAndConfirmTransaction(connection, transaction, [deployer], { commitment: 'confirmed' });
@@ -86,7 +86,7 @@ describe('Claim() functional testing', () => {
     const userEphemeralKey = Keypair.generate();
     const refundKey = Keypair.generate();
     const sessionId = BigInt(keccak256(toUtf8Bytes(crypto.randomUUID())));
-    const amount = '0.1';
+    const amount = 0.1 * LAMPORTS_PER_SOL;
     let correctTradeId: string;
     let correctTradeIdBytes: number[];
     let correctUserTradeDetail: PublicKey;
@@ -95,7 +95,7 @@ describe('Claim() functional testing', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: WSOL_MINT,
-        amount: '0.001',
+        amount: 0.001 * LAMPORTS_PER_SOL,
         connection: connection,
       });
       const addWhitelistTransaction = new Transaction().add(...addWhitelistIns);
@@ -199,8 +199,8 @@ describe('Claim() functional testing', () => {
       const afterVaultBalance = await connection.getBalance(vaultPda, 'confirmed');
       const afterRefundBalance = await connection.getBalance(refundKey.publicKey, 'confirmed');
       const afterUserBalance = await connection.getBalance(user.publicKey, 'confirmed');
-      assert.equal(beforeVaultBalance - afterVaultBalance, Number(amount) * LAMPORTS_PER_SOL, 'Vault balance should be decreased by the amount of SOL claimed');
-      assert.equal(afterRefundBalance - beforeRefundBalance, Number(amount) * LAMPORTS_PER_SOL, 'User balance should be increased by the amount of SOL claimed');
+      assert.equal(beforeVaultBalance - afterVaultBalance, Number(amount), 'Vault balance should be decreased by the amount of SOL claimed');
+      assert.equal(afterRefundBalance - beforeRefundBalance, Number(amount), 'User balance should be increased by the amount of SOL claimed');
       assert.equal(afterUserBalance - beforeUserBalance, nonceCheckAccountBalance, 'User balance should be increased by the amount of SOL account deleted');
 
       const userTradeDetailData = await getTradeDetailData(correctTradeId, connection);
@@ -257,8 +257,8 @@ describe('Claim() functional testing', () => {
     const userEphemeralKey = Keypair.generate();
     const refundKey = Keypair.generate();
     const sessionId = BigInt(keccak256(toUtf8Bytes(crypto.randomUUID())));
-    const amount = '0.1';
     const tokenUnit = 10 ** 8;
+    const amount = 0.1 * tokenUnit;
     let correctTradeId: string;
     let correctTradeIdBytes: number[];
     let correctUserTradeDetail: PublicKey;
@@ -276,12 +276,12 @@ describe('Claim() functional testing', () => {
         mint,
         { commitment: 'confirmed' }
       );
-      await airdropTokenToUser(connection, tokenMint, deployer, user.publicKey, 10 * tokenUnit);
+      await airdropTokenToUser(connection, tokenMint, deployer, user.publicKey, 10 * tokenUnit );
 
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: tokenMint,
-        amount: '0.001',
+        amount: 0.001 * LAMPORTS_PER_SOL,
         connection: connection,
       });
 
@@ -433,8 +433,8 @@ describe('Claim() functional testing', () => {
 
       const afterVaultBalance = await getTokenBalance(connection, tokenMint, vaultPda);
       const afterRefundBalance = await getTokenBalance(connection, tokenMint, refundKey.publicKey);
-      assert.equal(beforeVaultBalance - afterVaultBalance, Number(amount) * tokenUnit, 'Vault balance should be decreased by the amount of token claimed');
-      assert.equal(afterRefundBalance - beforeRefundBalance, Number(amount) * tokenUnit, 'Refund balance should be increased by the amount of token claimed');
+      assert.equal(beforeVaultBalance - afterVaultBalance, Number(amount) , 'Vault balance should be decreased by the amount of token claimed');
+      assert.equal(afterRefundBalance - beforeRefundBalance, Number(amount) , 'Refund balance should be increased by the amount of token claimed');
     })
   })
 });

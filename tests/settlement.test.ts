@@ -1,5 +1,5 @@
 import * as anchor from '@coral-xyz/anchor';
-import { PetaFiSolSmartcontract } from '../target/types/peta_fi_sol_smartcontract';
+import { OptimexSolSmartcontract } from '../target/types/optimex_sol_smartcontract';
 import {
   AccountMeta,
   Keypair,
@@ -21,20 +21,21 @@ import {
   setTransferFeeInstructionData,
   TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
-import { bigintToBytes32, DepositInstructionParam, getProtocolPda, getTradeInput, getUserTradeDetailPda, getVaultPda } from '../petafi-solana-js';
+import { bigintToBytes32, DepositInstructionParam, getProtocolPda, getUserTradeDetailPda } from '../solana-js/dist';
 import { delay } from '../scripts/utils/helper';
-import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions, createDepositAndVaultAtaIfNeededInstructions } from '../petafi-solana-js/instructions/deposit';
-import { createAssociatedTokenAccountInstructionIfNeeded } from '../petafi-solana-js/instructions/helpers';
-import { createInitializePetaFiInstructions } from '../petafi-solana-js/instructions/intialize';
-import { createAddOperatorInstruction } from '../petafi-solana-js/instructions/manage_operator';
-import { createAddOrUpdateWhitelistInstruction } from '../petafi-solana-js/instructions/manage_config';
-import { createSetTotalFeeInstructions } from '../petafi-solana-js/instructions/set_total_fee';
-import { WSOL_MINT } from '../petafi-solana-js/constants';
-import { getNonceCheckPda, getTradeVaultPda } from '../petafi-solana-js/pda/get_pda_address';
-import { getTradeDetailData } from '../petafi-solana-js/pda/get_pda_data';
+import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions, createDepositAndVaultAtaIfNeededInstructions } from '../solana-js/instructions/deposit';
+import { createAssociatedTokenAccountInstructionIfNeeded } from '../solana-js/instructions/helpers';
+import { createInitializeProgramInstructions } from '../solana-js/instructions/intialize';
+import { createAddOperatorInstruction } from '../solana-js/instructions/manage_operator';
+import { createAddOrUpdateWhitelistInstruction } from '../solana-js/instructions/manage_config';
+import { createSetTotalFeeInstructions } from '../solana-js/instructions/set_total_fee';
+import { WSOL_MINT } from '../solana-js/constants';
+import { getNonceCheckPda, getTradeVaultPda } from '../solana-js/pda/get_pda_address';
+import { getTradeDetailData } from '../solana-js/pda/get_pda_data';
+import { getTradeInput } from '../solana-js/utils/param_utils';
 dotenv.config();
 
-type TradeDetail = anchor.IdlTypes<PetaFiSolSmartcontract>['tradeDetail'];
+type TradeDetail = anchor.IdlTypes<OptimexSolSmartcontract>['tradeDetail'];
 
 describe('Settlement() functional testing', () => {
   // Configure the client to use the local cluster.
@@ -42,7 +43,7 @@ describe('Settlement() functional testing', () => {
   anchor.setProvider(anchorProvider);
 
   const program = anchor.workspace
-    .PetaFiSolSmartcontract as anchor.Program<PetaFiSolSmartcontract>;
+    .OptimexSolSmartcontract as anchor.Program<OptimexSolSmartcontract>;
 
   const connection = anchorProvider.connection;
   const deployer = (anchorProvider.wallet as anchor.Wallet).payer;
@@ -55,7 +56,7 @@ describe('Settlement() functional testing', () => {
 
   describe('Setup program', async () => {
     it('Deploy init success', async () => {
-      const instructions = await createInitializePetaFiInstructions({ signer: deployer.publicKey, connection, admin: deployer.publicKey });
+      const instructions = await createInitializeProgramInstructions({ signer: deployer.publicKey, connection, admin: deployer.publicKey });
       const transaction = new Transaction().add(...instructions);
       try {
         await sendAndConfirmTransaction(connection, transaction, [deployer], { commitment: 'confirmed' });
@@ -86,7 +87,7 @@ describe('Settlement() functional testing', () => {
     const userEphemeralKey = Keypair.generate();
     const refundKey = Keypair.generate();
     const sessionId = BigInt(keccak256(toUtf8Bytes(crypto.randomUUID())));
-    const amount = '0.1';
+    const amount = 0.1 * LAMPORTS_PER_SOL;
     let correctTradeId: string;
     let correctTradeIdBytes: number[];
     let correctUserTradeDetail: PublicKey;
@@ -96,7 +97,7 @@ describe('Settlement() functional testing', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: WSOL_MINT,
-        amount: '0.001',
+        amount: 0.001 * LAMPORTS_PER_SOL,
         connection: connection,
       });
       const addWhitelistTransaction = new Transaction().add(...addWhitelistIns);
@@ -162,11 +163,11 @@ describe('Settlement() functional testing', () => {
         throw error;
       }
       const afterVaultBalance = await connection.getBalance(vaultPda, 'confirmed');
-      assert.equal(beforeVaultBalance - afterVaultBalance, Number(amount) * LAMPORTS_PER_SOL, 'Vault balance should be decreased by the amount of SOL');
+      assert.equal(beforeVaultBalance - afterVaultBalance, Number(amount), 'Vault balance should be decreased by the amount of SOL');
       const afterUserBalance = await connection.getBalance(user.publicKey, 'confirmed');
       assert.equal(afterUserBalance - beforeUserBalance, nonceCheckAccountBalance, 'User balance should be increased by the amount of SOL nonceCheckAccount');
       const afterPmmBalance = await connection.getBalance(pmm.publicKey, 'confirmed');
-      assert.equal(afterPmmBalance - beforePmmBalance, Number(amount) * LAMPORTS_PER_SOL, 'Pmm balance should be increased by the amount deposit');
+      assert.equal(afterPmmBalance - beforePmmBalance, Number(amount), 'Pmm balance should be increased by the amount deposit');
     })
 
     it('Settlement() failed when trade already settled', async () => {
@@ -214,7 +215,7 @@ describe('Settlement() functional testing', () => {
     const userEphemeralKey = Keypair.generate();
     const refundKey = Keypair.generate();
     const sessionId = BigInt(keccak256(toUtf8Bytes(crypto.randomUUID())));
-    const amount = '0.1';
+    const amount = 0.1 * LAMPORTS_PER_SOL;
     let correctTradeId: string;
     let correctTradeIdBytes: number[];
     let correctUserTradeDetail: PublicKey;
@@ -414,8 +415,8 @@ describe('Settlement() functional testing', () => {
     const userEphemeralKey = Keypair.generate();
     const refundKey = Keypair.generate();
     const sessionId = BigInt(keccak256(toUtf8Bytes(crypto.randomUUID())));
-    const amount = '0.1';
     const tokenUnit = 10 ** 8;
+    const amount = 0.1 * tokenUnit;
     let correctTradeId: string;
     let correctTradeIdBytes: number[];
     let correctUserTradeDetail: PublicKey;
@@ -429,7 +430,7 @@ describe('Settlement() functional testing', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: tokenMint,
-        amount: '0.001',
+        amount: 0.001 * LAMPORTS_PER_SOL,
         connection: connection,
       });
       const addWhitelistTransaction = new Transaction().add(...addWhitelistIns);
@@ -505,9 +506,9 @@ describe('Settlement() functional testing', () => {
         throw error;
       }
       const afterVaultBalance = await getTokenBalance(connection, tokenMint, vaultPda);
-      assert.equal(beforeVaultBalance - afterVaultBalance, Number(amount) * tokenUnit, 'Vault balance should be decreased by the amount of token');
+      assert.equal(beforeVaultBalance - afterVaultBalance, Number(amount), 'Vault balance should be decreased by the amount of token');
       const afterPmmBalance = await getTokenBalance(connection, tokenMint, pmm.publicKey);
-      assert.equal(afterPmmBalance - beforePmmBalance, Number(amount) * tokenUnit, 'Pmm balance should be increased by the amount deposit');
+      assert.equal(afterPmmBalance - beforePmmBalance, Number(amount), 'Pmm balance should be increased by the amount deposit');
       const userTradeDetailData = await getTradeDetailData(correctTradeId, connection);
       assert.isObject(userTradeDetailData.status.settled, 'User trade detail should be deleted');
     })
@@ -520,8 +521,8 @@ describe('Settlement() functional testing', () => {
     const userEphemeralKey = Keypair.generate();
     const refundKey = Keypair.generate();
     const sessionId = BigInt(keccak256(toUtf8Bytes(crypto.randomUUID())));
-    const amount = '0.1';
     const tokenUnit = 10 ** 8;
+    const amount = 0.1 * tokenUnit;
     let correctTradeId: string;
     let correctTradeIdBytes: number[];
     let correctUserTradeDetail: PublicKey;
@@ -535,7 +536,7 @@ describe('Settlement() functional testing', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: tokenMint,
-        amount: '0.001',
+        amount: 0.001 * LAMPORTS_PER_SOL,
         connection: connection,
       });
       const addWhitelistTransaction = new Transaction().add(...addWhitelistIns);
@@ -595,7 +596,7 @@ describe('Settlement() functional testing', () => {
 
       const setProtocolFeeIns = await createSetTotalFeeInstructions({
         tradeId: correctTradeId,
-        amount: '0.001',
+        amount: (0.001 * LAMPORTS_PER_SOL),
         mpcPubkey: mpcKey.publicKey,
         connection: connection,
       });

@@ -1,6 +1,6 @@
 import * as anchor from '@coral-xyz/anchor';
 import { Program } from '@coral-xyz/anchor';
-import { PetaFiSolSmartcontract } from '../target/types/peta_fi_sol_smartcontract';
+import { OptimexSolSmartcontract } from '../target/types/optimex_sol_smartcontract';
 import {
   Keypair,
   LAMPORTS_PER_SOL,
@@ -10,13 +10,13 @@ import {
 } from '@solana/web3.js';
 import dotenv from 'dotenv';
 import { expect, assert } from 'chai';
-import { getProtocolPda, getVaultPda } from '../petafi-solana-js';
-import { createInitializePetaFiInstructions } from '../petafi-solana-js/instructions/intialize';
-import { createAddOperatorInstruction, createRemoveOperatorInstruction } from '../petafi-solana-js/instructions/manage_operator';
-import { getConfigData, getFeeReceiverData, getWhitelistTokenData } from '../petafi-solana-js/pda/get_pda_data';
-import { getConfigPda, getFeeReceiverPda, getWhitelistPda } from '../petafi-solana-js/pda/get_pda_address';
-import { createAddFeeReceiverInstruction, createAddOrUpdateWhitelistInstruction, createRemoveFeeReceiverInstruction, createRemoveWhitelistInstruction } from '../petafi-solana-js/instructions/manage_config';
-import { WSOL_MINT } from '../petafi-solana-js/constants';
+import { getProtocolPda, getVaultPda } from '../solana-js/pda/get_pda_address';
+import { createInitializeProgramInstructions } from '../solana-js/instructions/intialize';
+import { createAddOperatorInstruction, createRemoveOperatorInstruction } from '../solana-js/instructions/manage_operator';
+import { getConfigData, getFeeReceiverData, getWhitelistTokenData } from '../solana-js/pda/get_pda_data';
+import { getConfigPda, getFeeReceiverPda, getWhitelistPda } from '../solana-js/pda/get_pda_address';
+import { createAddFeeReceiverInstruction, createAddOrUpdateWhitelistInstruction, createRemoveFeeReceiverInstruction, createRemoveWhitelistInstruction } from '../solana-js/instructions/manage_config';
+import { WSOL_MINT } from '../solana-js/constants';
 import { sleep } from './utils';
 
 dotenv.config();
@@ -28,7 +28,7 @@ describe('Admin manage functional testing', () => {
   anchor.setProvider(anchorProvider);
 
   const program = anchor.workspace
-    .PetaFiSolSmartcontract as Program<PetaFiSolSmartcontract>;
+    .OptimexSolSmartcontract as Program<OptimexSolSmartcontract>;
 
   const deployer = (anchorProvider.wallet as anchor.Wallet).payer;
   const admin = Keypair.generate();
@@ -43,7 +43,7 @@ describe('Admin manage functional testing', () => {
 
   describe('Initialize', async () => {
     it('Init without admin success', async () => {
-      const instructions = await createInitializePetaFiInstructions({ signer: deployer.publicKey, connection, admin: null });
+      const instructions = await createInitializeProgramInstructions({ signer: deployer.publicKey, connection, admin: null });
       const transaction = new Transaction().add(...instructions);
       try {
         await sendAndConfirmTransaction(connection, transaction, [deployer], { commitment: 'confirmed' });
@@ -57,7 +57,7 @@ describe('Admin manage functional testing', () => {
     })
 
     it('Init with admin success', async () => {
-      const instructions = await createInitializePetaFiInstructions({ signer: deployer.publicKey, connection, admin: oldAdmin.publicKey });
+      const instructions = await createInitializeProgramInstructions({ signer: deployer.publicKey, connection, admin: oldAdmin.publicKey });
       const transaction = new Transaction().add(...instructions);
       try {
         await sendAndConfirmTransaction(connection, transaction, [deployer], { commitment: 'confirmed' });
@@ -71,7 +71,7 @@ describe('Admin manage functional testing', () => {
     });
 
     it('Init failed because of unauthorized', async () => {
-      const instructions = await createInitializePetaFiInstructions({ signer: admin.publicKey, connection, admin: admin.publicKey });
+      const instructions = await createInitializeProgramInstructions({ signer: admin.publicKey, connection, admin: admin.publicKey });
       const transaction = new Transaction().add(...instructions);
       try {
         await sendAndConfirmTransaction(connection, transaction, [admin], { commitment: 'confirmed' });
@@ -82,7 +82,7 @@ describe('Admin manage functional testing', () => {
     })
 
     it('Init and set admin again success', async () => {
-      const instructions = await createInitializePetaFiInstructions({ signer: deployer.publicKey, connection, admin: admin.publicKey });
+      const instructions = await createInitializeProgramInstructions({ signer: deployer.publicKey, connection, admin: admin.publicKey });
       const transaction = new Transaction().add(...instructions);
       try {
         await sendAndConfirmTransaction(connection, transaction, [deployer], { commitment: 'confirmed' });
@@ -96,7 +96,7 @@ describe('Admin manage functional testing', () => {
     });
 
     it('Init without admin will not change admin', async () => {
-      const instructions = await createInitializePetaFiInstructions({ signer: deployer.publicKey, connection, admin: null });
+      const instructions = await createInitializeProgramInstructions({ signer: deployer.publicKey, connection, admin: null });
       const transaction = new Transaction().add(...instructions);
       try {
         await sendAndConfirmTransaction(connection, transaction, [deployer], { commitment: 'confirmed' });
@@ -267,7 +267,7 @@ describe('Admin manage functional testing', () => {
     })
 
     it(`Add whitelist success`, async () => {
-      const minAmount = '0.01';
+      const minAmount = 0.01 * LAMPORTS_PER_SOL;
       const instruction = await createAddOrUpdateWhitelistInstruction({
         operator: newOperator.publicKey,
         token: WSOL_MINT,
@@ -283,11 +283,11 @@ describe('Admin manage functional testing', () => {
       }
       const whitelistTokenData = await getWhitelistTokenData(WSOL_MINT, connection);
       assert.equal(whitelistTokenData.token.toBase58(), WSOL_MINT.toBase58(), 'Token mismatch');
-      assert.equal(whitelistTokenData.amount.toString(), (Number(minAmount) * LAMPORTS_PER_SOL).toString(), 'Amount mismatch');
+      assert.equal(whitelistTokenData.amount.toString(), (Number(minAmount)).toString(), 'Amount mismatch');
     })
 
     it('Add whitelist failed because of unathorized operator', async () => {
-      const minAmount = '0.01';
+      const minAmount = 0.01 * LAMPORTS_PER_SOL;
       const instruction = await createAddOrUpdateWhitelistInstruction({
         operator: fakeOperator.publicKey,
         token: WSOL_MINT,
@@ -304,7 +304,7 @@ describe('Admin manage functional testing', () => {
     })
 
     it('Update whitelist success', async () => {
-      const minAmount = '0.02';
+      const minAmount = BigInt(0.02 * LAMPORTS_PER_SOL);
       const instruction = await createAddOrUpdateWhitelistInstruction({
         operator: newOperator.publicKey,
         token: WSOL_MINT,
@@ -321,7 +321,7 @@ describe('Admin manage functional testing', () => {
 
       const whitelistTokenData = await getWhitelistTokenData(WSOL_MINT, connection);
       assert.equal(whitelistTokenData.token.toBase58(), WSOL_MINT.toBase58(), 'Token mismatch');
-      assert.equal(whitelistTokenData.amount.toString(), (Number(minAmount) * LAMPORTS_PER_SOL).toString(), 'Amount mismatch');
+      assert.equal(whitelistTokenData.amount.toString(), (Number(minAmount)).toString(), 'Amount mismatch');
     })
 
     it('Remove whitelist success', async () => {

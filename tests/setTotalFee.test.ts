@@ -1,5 +1,5 @@
 import * as anchor from '@coral-xyz/anchor';
-import { PetaFiSolSmartcontract } from '../target/types/peta_fi_sol_smartcontract';
+import { OptimexSolSmartcontract } from '../target/types/optimex_sol_smartcontract';
 import {
   ComputeBudgetProgram,
   Keypair,
@@ -13,20 +13,20 @@ import { expect, assert } from 'chai';
 import { createAccount, createTokenPair, getBlockTime, sleep } from './utils';
 import { keccak256, toUtf8Bytes } from 'ethers';
 import { solverAddress } from './example-data';
-import { createInitializePetaFiInstructions } from '../petafi-solana-js/instructions/intialize';
-import { createDepositAndVaultAtaIfNeededInstructions, DepositInstructionParam } from '../petafi-solana-js/instructions/deposit';
+import { createInitializeProgramInstructions } from '../solana-js/instructions/intialize';
+import { createDepositAndVaultAtaIfNeededInstructions, DepositInstructionParam } from '../solana-js/instructions/deposit';
 import { delay } from '../scripts/utils/helper';
-import { createAddOperatorInstruction } from '../petafi-solana-js/instructions/manage_operator';
-import { getWhitelistPda } from '../petafi-solana-js/pda/get_pda_address';
-import { getTradeDetailData } from '../petafi-solana-js/pda/get_pda_data';
-import { WSOL_MINT } from '../petafi-solana-js/constants';
-import { createAddOrUpdateWhitelistInstruction } from '../petafi-solana-js/instructions/manage_config';
-import { getTradeInput } from '../petafi-solana-js/utils/param_utils';
-import { createSetTotalFeeInstructions } from '../petafi-solana-js/instructions/set_total_fee';
+import { createAddOperatorInstruction } from '../solana-js/instructions/manage_operator';
+import { getWhitelistPda } from '../solana-js/pda/get_pda_address';
+import { getTradeDetailData } from '../solana-js/pda/get_pda_data';
+import { WSOL_MINT } from '../solana-js/constants';
+import { createAddOrUpdateWhitelistInstruction } from '../solana-js/instructions/manage_config';
+import { getTradeInput } from '../solana-js/utils/param_utils';
+import { createSetTotalFeeInstructions } from '../solana-js/instructions/set_total_fee';
 
 dotenv.config();
 
-type TradeDetail = anchor.IdlTypes<PetaFiSolSmartcontract>['tradeDetail'];
+type TradeDetail = anchor.IdlTypes<OptimexSolSmartcontract>['tradeDetail'];
 
 describe('Set Total Fee () functional testing', () => {
   // Configure the client to use the local cluster.
@@ -34,7 +34,7 @@ describe('Set Total Fee () functional testing', () => {
   anchor.setProvider(anchorProvider);
 
   const program = anchor.workspace
-    .PetaFiSolSmartcontract as anchor.Program<PetaFiSolSmartcontract>;
+    .OptimexSolSmartcontract as anchor.Program<OptimexSolSmartcontract>;
 
   const connection = anchorProvider.connection;
   const deployer = (anchorProvider.wallet as anchor.Wallet).payer;
@@ -45,7 +45,7 @@ describe('Set Total Fee () functional testing', () => {
 
   describe('Setup program', async () => {
     it('Deploy init success', async () => {
-      const instructions = await createInitializePetaFiInstructions({ signer: deployer.publicKey, connection, admin: deployer.publicKey });
+      const instructions = await createInitializeProgramInstructions({ signer: deployer.publicKey, connection, admin: deployer.publicKey });
       const transaction = new Transaction().add(...instructions);
       try {
         await sendAndConfirmTransaction(connection, transaction, [deployer], { commitment: 'confirmed' });
@@ -80,7 +80,7 @@ describe('Set Total Fee () functional testing', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: WSOL_MINT,
-        amount: '0.001',
+        amount: 0.001 * LAMPORTS_PER_SOL,
         connection: connection,
       });
       const transaction = new Transaction().add(...addWhitelistIns);
@@ -94,7 +94,7 @@ describe('Set Total Fee () functional testing', () => {
     const refundKey = Keypair.generate();
     const sessionId = BigInt(keccak256(toUtf8Bytes(crypto.randomUUID())));
     const [fromToken, toToken] = createTokenPair();
-    const amount = 0.05;
+    const amount = 0.05 * LAMPORTS_PER_SOL;
     let tradeId: string;
     let depositParams: DepositInstructionParam
     before(async () => {
@@ -104,7 +104,7 @@ describe('Set Total Fee () functional testing', () => {
         userPubkey: user.publicKey,
         mpcPubkey: mpcKey.publicKey,
         userEphemeralPubkey: userEphemeralKey.publicKey,
-        amount: amount.toString(),
+        amount: amount,
         connection: connection,
         scriptTimeout: currentTime + 5,
         fromToken,
@@ -132,10 +132,10 @@ describe('Set Total Fee () functional testing', () => {
     });
 
     it('Set protocol fee successfully', async () => {
-      const protocolFee = 0.001;
+      const protocolFee = 0.001 * LAMPORTS_PER_SOL;
       const instructions = await createSetTotalFeeInstructions({
         tradeId: tradeId,
-        amount: protocolFee.toString(),
+        amount: protocolFee,
         mpcPubkey: mpcKey.publicKey,
         connection: connection,
       })
@@ -147,14 +147,14 @@ describe('Set Total Fee () functional testing', () => {
         throw error;
       }
       const userTradeDetail = await getTradeDetailData(tradeId, connection);
-      assert.equal(userTradeDetail.totalFee.toNumber(), protocolFee * LAMPORTS_PER_SOL, 'User trade detail should be equal');
+      assert.equal(userTradeDetail.totalFee.toNumber(), protocolFee, 'User trade detail should be equal');
     });
 
     it('Update protocol fee successfully', async () => {
-      const protocolFee = 0.002;
+      const protocolFee = 0.002 * LAMPORTS_PER_SOL;
       const instructions = await createSetTotalFeeInstructions({
         tradeId: tradeId,
-        amount: protocolFee.toString(),
+        amount: protocolFee,
         mpcPubkey: mpcKey.publicKey,
         connection: connection,
       })
@@ -166,14 +166,14 @@ describe('Set Total Fee () functional testing', () => {
         throw error;
       }
       const userTradeDetail = await getTradeDetailData(tradeId, connection);
-      assert.equal(userTradeDetail.totalFee.toNumber(), protocolFee * LAMPORTS_PER_SOL, 'User trade detail should be equal');
+      assert.equal(userTradeDetail.totalFee.toNumber(), protocolFee, 'User trade detail should be equal');
     });
 
     it('Update protocol fee failed because of unauthorized', async () => {
-      const protocolFee = 0.002;
+      const protocolFee = 0.002 * LAMPORTS_PER_SOL;
       const instructions = await createSetTotalFeeInstructions({
         tradeId: tradeId,
-        amount: protocolFee.toString(),
+        amount: protocolFee,
         mpcPubkey: fakeMpcKey.publicKey,
         connection: connection,
       })
@@ -185,13 +185,30 @@ describe('Set Total Fee () functional testing', () => {
         expect(error.toString().includes('Unauthorized')).to.be.true;
       }
     });
+    
+    it('Update protocol fee failed because of invalid total fee', async () => {
+      const protocolFee = 1000 * LAMPORTS_PER_SOL;
+      const instructions = await createSetTotalFeeInstructions({
+        tradeId: tradeId,
+        amount: protocolFee,
+        mpcPubkey: mpcKey.publicKey,
+        connection: connection,
+      })
+      try {
+        const transaction = new Transaction().add(...instructions);
+        const sig = await sendAndConfirmTransaction(connection, transaction, [mpcKey], { commitment: 'confirmed' });
+        assert.fail('Should not reach here');
+      } catch (error) {
+        expect(error.toString().includes('InvalidTotalFee')).to.be.true;
+      }
+    });
 
     it('Update protocol fee failed because of timeout', async () => {
-      const protocolFee = 0.002;
+      const protocolFee = 0.002 * LAMPORTS_PER_SOL;
       await sleep(6000);
       const instructions = await createSetTotalFeeInstructions({
         tradeId: tradeId,
-        amount: protocolFee.toString(),
+        amount: protocolFee,
         mpcPubkey: mpcKey.publicKey,
         connection: connection,
       })

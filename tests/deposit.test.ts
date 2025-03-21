@@ -1,6 +1,6 @@
 import * as anchor from '@coral-xyz/anchor';
 import { Program } from '@coral-xyz/anchor';
-import { PetaFiSolSmartcontract } from '../target/types/peta_fi_sol_smartcontract';
+import { OptimexSolSmartcontract } from '../target/types/optimex_sol_smartcontract';
 import {
   Keypair,
   LAMPORTS_PER_SOL,
@@ -19,15 +19,15 @@ import { solverAddress } from './example-data';
 import {
   createMint,
 } from '@solana/spl-token';
-import { bigintToBytes32, DepositInstructionParam, encodeAddress, getProtocolPda, getUserTradeDetailPda, getVaultPda, TradeInput, TradeDetailInput, parseEtherToBytes32 } from '../petafi-solana-js';
-import { createInitializePetaFiInstructions } from '../petafi-solana-js/instructions/intialize';
-import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions } from '../petafi-solana-js/instructions/deposit';
-import { createAddOperatorInstruction } from '../petafi-solana-js/instructions/manage_operator';
-import { WSOL_MINT } from '../petafi-solana-js/constants';
-import { createAddOrUpdateWhitelistInstruction } from '../petafi-solana-js/instructions/manage_config';
-import { getNonceCheckPda, getTradeVaultPda, getWhitelistPda } from '../petafi-solana-js/pda/get_pda_address';
-import { getTradeInput } from '../petafi-solana-js/utils/param_utils';
-import { getTradeDetailData } from '../petafi-solana-js/pda/get_pda_data';
+import { bigintToBytes32, DepositInstructionParam, encodeAddress, getProtocolPda, getUserTradeDetailPda, getVaultPda, TradeInput, TradeDetailInput, parseEtherToBytes32 } from '../solana-js/dist';
+import { createInitializeProgramInstructions } from '../solana-js/instructions/intialize';
+import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions } from '../solana-js/instructions/deposit';
+import { createAddOperatorInstruction } from '../solana-js/instructions/manage_operator';
+import { WSOL_MINT } from '../solana-js/constants';
+import { createAddOrUpdateWhitelistInstruction } from '../solana-js/instructions/manage_config';
+import { getNonceCheckPda, getTradeVaultPda, getWhitelistPda } from '../solana-js/pda/get_pda_address';
+import { getTradeInput } from '../solana-js/utils/param_utils';
+import { getTradeDetailData } from '../solana-js/pda/get_pda_data';
 import { delay } from '../scripts/utils/helper';
 
 dotenv.config();
@@ -39,7 +39,7 @@ describe('Deposit () functional testing', () => {
   anchor.setProvider(anchorProvider);
 
   const program = anchor.workspace
-    .PetaFiSolSmartcontract as Program<PetaFiSolSmartcontract>;
+    .OptimexSolSmartcontract as Program<OptimexSolSmartcontract>;
 
   const deployer = (anchorProvider.wallet as anchor.Wallet).payer;
   const operator = Keypair.generate();
@@ -51,7 +51,7 @@ describe('Deposit () functional testing', () => {
 
   describe('Setup program', async () => {
     it('Deploy init success', async () => {
-      const instructions = await createInitializePetaFiInstructions({ signer: deployer.publicKey, connection, admin: deployer.publicKey });
+      const instructions = await createInitializeProgramInstructions({ signer: deployer.publicKey, connection, admin: deployer.publicKey });
       const transaction = new Transaction().add(...instructions);
       try {
         await sendAndConfirmTransaction(connection, transaction, [deployer], { commitment: 'confirmed' });
@@ -85,7 +85,7 @@ describe('Deposit () functional testing', () => {
       const instructions = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: WSOL_MINT,
-        amount: '0.001',
+        amount: 0.001 * LAMPORTS_PER_SOL,
         connection: connection,
       });
       const transaction = new Transaction().add(...instructions);
@@ -105,10 +105,10 @@ describe('Deposit () functional testing', () => {
     const refundKey = Keypair.generate();
     const mpcKey = Keypair.generate();
     const sessionId = BigInt(keccak256(toUtf8Bytes(crypto.randomUUID())));
-    const amount = '0.1';
+    const amount = 0.1 * LAMPORTS_PER_SOL;
     let correctTradeInput: TradeInput;
     let correctTradeId: string;
-    let correctDepositAmount: string;
+    let correctDepositAmount: BigInt | number;
     let correctTradeDetail: TradeDetailInput;
     let correctTradeIdBytes: number[];
     let correctUserTradeDetail: PublicKey;
@@ -129,7 +129,7 @@ describe('Deposit () functional testing', () => {
         solver: solverAddress,
         refundPubkey: refundKey.publicKey,
       };
-      ({ tradeInput: correctTradeInput, tradeId: correctTradeId, depositAmount: correctDepositAmount } = await getTradeInput(depositParam));
+      ({ tradeInput: correctTradeInput, tradeId: correctTradeId, amount: correctDepositAmount } = await getTradeInput(depositParam));
 
       correctTradeDetail = {
         timeout: new anchor.BN(Math.floor(Date.now() / 1000) + 3000),
@@ -286,7 +286,7 @@ describe('Deposit () functional testing', () => {
         throw error;
       }
       const userTradeDetailData = await getTradeDetailData(tradeId, connection);
-      assert.equal(userTradeDetailData.amount.toString(), correctDepositAmount, 'Deposit amount invalid');
+      assert.equal(userTradeDetailData.amount.toString(), correctDepositAmount.toString(), 'Deposit amount invalid');
       assert.equal(userTradeDetailData.mpcPubkey.toBase58(), mpcKey.publicKey.toBase58(), 'MPC pubkey invalid');
       assert.equal(userTradeDetailData.refundPubkey.toBase58(), refundKey.publicKey.toBase58(), 'Refund pubkey invalid');
       assert.equal(userTradeDetailData.userPubkey.toBase58(), user.publicKey.toBase58(), 'User pubkey invalid');
@@ -294,14 +294,13 @@ describe('Deposit () functional testing', () => {
       assert.isNull(userTradeDetailData.token, 'Token mint invalid');
 
       const afterVaultBalance = await connection.getBalance(vaultPda, 'confirmed');
-      assert.equal(afterVaultBalance - beforeVaultBalance, Number(amount) * LAMPORTS_PER_SOL + rentForSpace8, 'Vault balance invalid');
+      assert.equal(afterVaultBalance - beforeVaultBalance, Number(amount) + rentForSpace8, 'Vault balance invalid');
       const userTradeDetailBalance = await connection.getBalance(correctUserTradeDetail, 'confirmed');
       const afterUserBalance = await connection.getBalance(user.publicKey, 'confirmed');
       const userEphemeralBalance = await connection.getBalance(userEphemeralKey.publicKey, 'confirmed');
       const nonceCheckPda = getNonceCheckPda(userEphemeralKey.publicKey);
       const nonceCheckPdaBalance = await connection.getBalance(nonceCheckPda, 'confirmed');
       const vaultPdaBalance = await connection.getBalance(vaultPda, 'confirmed');
-      // nonceCheckBalance (rent fee) + userTradeDetailBalance (rent fee) + vaultPdaBalace (rent fee + deposit amount) + userEphemeralBalance (rent fee)
       assert.equal(beforeUserBalance - afterUserBalance, nonceCheckPdaBalance + userTradeDetailBalance + vaultPdaBalance + userEphemeralBalance, 'User balance invalid');
     });
 
@@ -334,10 +333,10 @@ describe('Deposit () functional testing', () => {
     const refundKey = Keypair.generate();
     const mpcKey = Keypair.generate();
     const sessionId = BigInt(keccak256(toUtf8Bytes(crypto.randomUUID())));
-    const amount = '0.1';
+    const amount = 0.1 * tokenUnit;
     let correctTradeInput: TradeInput;
     let correctTradeId: string;
-    let correctDepositAmount: string;
+    let correctDepositAmount: BigInt | number;
     let correctTradeDetail: TradeDetailInput;
     let correctTradeIdBytes: number[];
     let correctUserTradeDetail: PublicKey;
@@ -368,7 +367,7 @@ describe('Deposit () functional testing', () => {
         solver: solverAddress,
         refundPubkey: refundKey.publicKey,
       };
-      ({ tradeInput: correctTradeInput, tradeId: correctTradeId, depositAmount: correctDepositAmount } = await getTradeInput(depositParam));
+      ({ tradeInput: correctTradeInput, tradeId: correctTradeId, amount: correctDepositAmount } = await getTradeInput(depositParam));
 
       correctTradeDetail = {
         timeout: new anchor.BN(Math.floor(Date.now() / 1000) + 3000),
@@ -384,7 +383,7 @@ describe('Deposit () functional testing', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: tokenMint,
-        amount: '0.001',
+        amount: 0.001 * LAMPORTS_PER_SOL,
         connection,
       });
       const addWhitelistTransaction = new Transaction().add(...addWhitelistIns);
@@ -394,7 +393,7 @@ describe('Deposit () functional testing', () => {
     it('Deposit failed because of invalid whitelist amount', async () => {
       const newDepositParam = {
         ...depositParam,
-        amount: '0.0001', 
+        amount: 0.0001 * tokenUnit, 
       }
       const depositIns = await createDepositAndVaultAtaIfNeededAndNonceAccountInstructions(newDepositParam);
       const transaction = new Transaction().add(...depositIns);
@@ -420,7 +419,7 @@ describe('Deposit () functional testing', () => {
         throw error;
       }
       const userTradeDetailData = await getTradeDetailData(correctTradeId, connection);
-      assert.equal(userTradeDetailData.amount.toString(), correctDepositAmount, 'Deposit amount invalid');
+      assert.equal(userTradeDetailData.amount.toString(), correctDepositAmount.toString(), 'Deposit amount invalid');
       assert.equal(userTradeDetailData.mpcPubkey.toBase58(), mpcKey.publicKey.toBase58(), 'MPC pubkey invalid');
       assert.equal(userTradeDetailData.refundPubkey.toBase58(), refundKey.publicKey.toBase58(), 'Refund pubkey invalid');
       assert.equal(userTradeDetailData.userPubkey.toBase58(), user.publicKey.toBase58(), 'User pubkey invalid');
@@ -428,9 +427,9 @@ describe('Deposit () functional testing', () => {
       assert.equal(userTradeDetailData.token.toBase58(), tokenMint.toBase58(), 'Token mint invalid');
 
       const afterVaultBalance = await getTokenBalance(connection, tokenMint, vaultPda);
-      assert.equal(afterVaultBalance - beforeVaultBalance, Number(amount) * tokenUnit, 'Vault balance invalid');
+      assert.equal(afterVaultBalance - beforeVaultBalance, Number(amount), 'Vault balance invalid');
       const afterUserBalance = await getTokenBalance(connection, tokenMint, user.publicKey);
-      assert.equal(beforeUserBalance - afterUserBalance, Number(amount) * tokenUnit, 'User balance invalid');
+      assert.equal(beforeUserBalance - afterUserBalance, Number(amount), 'User balance invalid');
     });
 
     it(`Deposit failed because of not whitelisted token`, async () => {
@@ -443,7 +442,7 @@ describe('Deposit () functional testing', () => {
         ...depositParam,
         fromToken,
       }
-      const { tradeInput, tradeId, depositAmount } = await getTradeInput(newDepositParam);
+      const { tradeInput, tradeId, amount } = await getTradeInput(newDepositParam);
       const tradeIdBytes = bigintToBytes32(BigInt(tradeId));
       const tradeDetail = {
         timeout: new anchor.BN(Math.floor(Date.now() / 1000) + 3000),

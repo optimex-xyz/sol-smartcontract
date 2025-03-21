@@ -1,7 +1,8 @@
 import { AnchorProvider } from '@coral-xyz/anchor';
 import { Connection, Keypair, PublicKey, sendAndConfirmTransaction, SystemProgram, Transaction } from '@solana/web3.js';
-import { IToken } from '../petafi-solana-js/types/token_interface';
-import { createAssociatedTokenAccountInstruction, createMintToInstruction, getAssociatedTokenAddress, getAssociatedTokenAddressSync } from '@solana/spl-token';
+import { IToken } from '../solana-js/types/token_interface';
+import { createMintToInstruction, getAssociatedTokenAddress, getAssociatedTokenAddressSync } from '@solana/spl-token';
+import { createAssociatedTokenAccountInstructionIfNeeded } from '../solana-js';
 
 export const createAccount = async ({
   provider,
@@ -112,12 +113,14 @@ export function createTokenPair(tokenAddr?: string): [IToken, IToken] {
 
 export async function airdropTokenToUser(connection: Connection, mint: PublicKey, mintAuthority: Keypair, user: PublicKey, amount: number) {
   const associatedTokenAddress = getAssociatedTokenAddressSync(mint, user, true);
-  const createUserAtaInstruction = createAssociatedTokenAccountInstruction(
+
+  const createUserAtaInstruction = await createAssociatedTokenAccountInstructionIfNeeded(
+    connection,
     mintAuthority.publicKey,
-    associatedTokenAddress,
-    user,
     mint,
-  );
+    user,
+    'confirmed',
+  )
 
   const mintToUserInstruction = await createMintToInstruction(
     mint,
@@ -126,7 +129,7 @@ export async function airdropTokenToUser(connection: Connection, mint: PublicKey
     amount,
   );
 
-  const transaction = new Transaction().add(createUserAtaInstruction, mintToUserInstruction);
+  const transaction = new Transaction().add(...createUserAtaInstruction, mintToUserInstruction);
   await sendAndConfirmTransaction(connection, transaction, [mintAuthority], { commitment: 'confirmed' });
 }
 
