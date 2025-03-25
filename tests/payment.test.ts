@@ -10,9 +10,8 @@ import {
 } from '@solana/web3.js';
 import dotenv from 'dotenv';
 import { expect, assert } from 'chai';
-import { airdropTokenToUser, createAccount, getTokenBalance, sleep } from './utils';
-import { keccak256, sha256, toUtf8Bytes } from 'ethers';
-import _ from 'lodash';
+import { airdropTokenToUser, getTokenBalance, sleep } from './utils';
+import { sha256 } from 'ethers';
 import {
   createMint,
 } from '@solana/spl-token';
@@ -26,8 +25,6 @@ import { getPaymentReceiptAddresses, getPaymentReceiptData } from '../solana-js/
 import { createClosePaymentReceiptInstructions } from '../solana-js/instructions/close_payment_receipt';
 
 dotenv.config();
-
-type TradeDetail = anchor.IdlTypes<OptimexSolSmartcontract>['tradeDetail'];
 
 describe('Payment() functional testing', () => {
   // Configure the client to use the local cluster.
@@ -59,7 +56,7 @@ describe('Payment() functional testing', () => {
         BPF_LOADER_PROGRAM
       );
 
-      const tx = await program.methods
+      await program.methods
         .init({ admin: deployer.publicKey })
         .accounts({
           signer: deployer.publicKey,
@@ -91,7 +88,7 @@ describe('Payment() functional testing', () => {
       const instructions = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: WSOL_MINT,
-        amount: 0.001 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.001 * LAMPORTS_PER_SOL),
         connection: connection,
       });
       const transaction = new Transaction().add(...instructions);
@@ -128,8 +125,8 @@ describe('Payment() functional testing', () => {
         toUser: Keypair.generate().publicKey,
         tradeId,
         token: null,
-        amount: 10,
-        totalFee: 1,
+        amount: BigInt(10),
+        totalFee: BigInt(1),
         deadline: 0,
         connection,
       });
@@ -151,8 +148,8 @@ describe('Payment() functional testing', () => {
         toUser: Keypair.generate().publicKey,
         tradeId,
         token: null,
-        amount: 0,
-        totalFee: 0,
+        amount: BigInt(0),
+        totalFee: BigInt(0),
         deadline: currentTime + 3000,
         connection,
       });
@@ -167,8 +164,6 @@ describe('Payment() functional testing', () => {
     });
 
     it('Should fail when pFee is bigger than amount', async () => {
-      const amount = 100;
-      const pFee = 110;
       const tradeId = sha256('0x11');
       const currentTime = await getBlockTime(connection);
 
@@ -177,8 +172,8 @@ describe('Payment() functional testing', () => {
         toUser: Keypair.generate().publicKey,
         tradeId,
         token: null,
-        amount: 100,
-        totalFee: 110,
+        amount: BigInt(100),
+        totalFee: BigInt(110),
         deadline: currentTime + 3000,
         connection,
       });
@@ -209,8 +204,8 @@ describe('Payment() functional testing', () => {
         toUser: newAccount.publicKey,
         tradeId,
         token: null,
-        amount,
-        totalFee: pFee,
+        amount: BigInt(amount),
+        totalFee: BigInt(pFee),
         deadline: currentTime + 3000,
         connection,
       });
@@ -235,8 +230,8 @@ describe('Payment() functional testing', () => {
         toUser: newAccount.publicKey,
         tradeId,
         token: null,
-        amount,
-        protocolFee: pFee,
+        amount: BigInt(amount),
+        protocolFee: BigInt(pFee),
       });
       const paymentReceiptBalance = await connection.getBalance(paymentReceiptPda, 'confirmed');
       const afterFromUserBalance = await connection.getBalance(user.publicKey, 'confirmed');
@@ -266,8 +261,8 @@ describe('Payment() functional testing', () => {
         toUser: newAccount.publicKey,
         tradeId,
         token: null,
-        amount: 0.1 * 10**9,
-        totalFee: 0.0001 * 10**9,
+        amount: BigInt(0.1 * 10**9),
+        totalFee: BigInt(0.0001 * 10**9),
         deadline: currentTime + 3000,
         connection,
       });
@@ -336,11 +331,6 @@ describe('Payment() functional testing', () => {
     it('Should fail when close payment receipt unauthorized', async () => {
       const tradeId = sha256('0x11');
       const paymentReceiptPda = (await getPaymentReceiptAddresses(connection, { tradeId }))[0];
-      const closePaymentReceiptIns = await createClosePaymentReceiptInstructions({
-        paymentReceipt: paymentReceiptPda.publicKey,
-        connection,
-      });
-      const transaction = new Transaction().add(...closePaymentReceiptIns);
       try {
         await program.methods.closePaymentReceipt()
         .accounts({
@@ -382,7 +372,6 @@ describe('Payment() functional testing', () => {
 
   describe('Payment with token', () => {
     let mint: PublicKey;
-    let protocolAta: PublicKey;
     const newAccount = Keypair.generate();
     const amount = 1000 * 10 ** 8;
     const pFee = 10 * 10 ** 8;
@@ -401,7 +390,7 @@ describe('Payment() functional testing', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: mint,
-        amount: 0.001 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.001 * LAMPORTS_PER_SOL),
         connection,
       });
       const transaction = new Transaction().add(...addWhitelistIns);
@@ -421,8 +410,8 @@ describe('Payment() functional testing', () => {
         toUser: newAccount.publicKey,
         tradeId,
         token: mint,
-        amount,
-        totalFee: pFee,
+        amount: BigInt(amount),
+        totalFee: BigInt(pFee),
         deadline: currentTime + 3000,
         connection,
       });
@@ -449,8 +438,8 @@ describe('Payment() functional testing', () => {
         toUser: newAccount.publicKey,
         tradeId,
         token: mint,
-        amount,
-        protocolFee: pFee,
+        amount: BigInt(amount),
+        protocolFee: BigInt(pFee),
       });
       const paymentReceiptData = await getPaymentReceiptData(paymentReceiptPda, connection);
       assert.equal(paymentReceiptData.fromPubkey.toBase58(), deployer.publicKey.toBase58(), 'From user should be the same');
@@ -490,8 +479,8 @@ describe('Payment() functional testing', () => {
         toUser: deployer.publicKey,
         tradeId,
         token: mint,
-        amount,
-        totalFee: pFee,
+        amount: BigInt(amount),
+        totalFee: BigInt(pFee),
         deadline: currentTime + 3000,
         connection,
       });

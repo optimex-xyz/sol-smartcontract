@@ -2,44 +2,32 @@ import * as anchor from '@coral-xyz/anchor';
 import { Program } from '@coral-xyz/anchor';
 import { OptimexSolSmartcontract } from '../target/types/optimex_sol_smartcontract';
 import {
-  ComputeBudgetProgram,
   Connection,
   Keypair,
   LAMPORTS_PER_SOL,
-  NONCE_ACCOUNT_LENGTH,
-  sendAndConfirmRawTransaction,
   sendAndConfirmTransaction,
   Transaction,
 } from '@solana/web3.js';
 import dotenv from 'dotenv';
-import { expect, use } from 'chai';
-import { airdropTokenToUser, createTokenPair, getBlockTime, getTokenBalance, sleep } from './utils';
+import { expect } from 'chai';
+import { airdropTokenToUser, createTokenPair, getTokenBalance } from './utils';
 import { keccak256, toUtf8Bytes } from 'ethers';
 import { assert } from 'chai';
 import crypto from 'crypto';
 import { solverAddress } from './example-data';
 import {
-  createAssociatedTokenAccountInstruction,
   createMint,
-  createSyncNativeInstruction,
-  getAssociatedTokenAddressSync,
 } from '@solana/spl-token';
-import { getProtocolPda, getTradeVaultPda, getUserTradeDetailPda, getVaultPda, getWhitelistPda } from '../solana-js/pda/get_pda_address';
+import { getProtocolPda, getTradeVaultPda, getUserTradeDetailPda, getVaultPda } from '../solana-js/pda/get_pda_address';
 import { createInitializeProgramInstructions } from '../solana-js/instructions/intialize';
-import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions, DepositInstructionParam } from '../solana-js/instructions/deposit';
+import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions } from '../solana-js/instructions/deposit';
 import { createNonceAdvanceAndSettlementInstruction, createUserPresignSettlementTransactionAndSerializeToString } from '../solana-js/instructions/settlement';
 import { createAssociatedTokenAccountInstructionIfNeeded, verifyPresignSettlement } from '../solana-js/instructions/helpers';
 import { getTradeInput } from '../solana-js/utils/param_utils';
-import { createClaimAndRefundAtaAndProtocolAtaIfNeededInstructions } from '../solana-js/instructions/claim';
-import { createSetTotalFeeInstructions } from '../solana-js/instructions/set_total_fee';
 import { createAddOperatorInstruction } from '../solana-js/instructions/manage_operator';
 import { WSOL_MINT } from '../solana-js/constants';
 import { createAddOrUpdateWhitelistInstruction } from '../solana-js/instructions/manage_config';
 import { SystemProgram } from '@solana/web3.js';
-import { getTradeDetailData } from '../solana-js/pda/get_pda_data';
-import { createCloseFinishedTradeInstructions } from '../solana-js/instructions/close_finished_trade';
-import { bigintToBytes32 } from '../solana-js/utils/parse_utils';
-import nacl from 'tweetnacl';
 import { InvalidPresignStringError } from '../solana-js/errors';
 
 dotenv.config();
@@ -78,27 +66,28 @@ describe('Verify presign settlement', () => {
       const transaction = new Transaction().add(...instructions);
       transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
       try {
-        const txHash = await sendAndConfirmTransaction(connection, transaction, [deployer], { commitment: 'confirmed' });
+        await sendAndConfirmTransaction(connection, transaction, [deployer], { commitment: 'confirmed' });
       } catch (error) {
         console.error(error);
         throw error;
       }
 
       // Expect vault and protocol pda is already init
-      let vaultPdaAccountInfo = await connection.getAccountInfo(vaultPda, 'confirmed');
+      const vaultPdaAccountInfo = await connection.getAccountInfo(vaultPda, 'confirmed');
 
-      expect(
-        vaultPdaAccountInfo.owner.toString() === program.programId.toString(),
+      assert.equal(
+        vaultPdaAccountInfo.owner.toString(),
+        program.programId.toString(),
         'Expect owner of vault pda is optimex smart-contract'
-      ).to.be.true;
+      )
 
-      let protocolPdaAccountInfo = await connection.getAccountInfo(protocolPda);
+      const protocolPdaAccountInfo = await connection.getAccountInfo(protocolPda);
 
-      expect(
-        protocolPdaAccountInfo.owner.toString() ===
+      assert.equal(
+        protocolPdaAccountInfo.owner.toString(),
         program.programId.toString(),
         'Expect owner of protocol pda is optimex smart-contract'
-      ).to.be.true;
+      )
     });
 
     it('Deployer add operator successfully', async () => {
@@ -114,11 +103,10 @@ describe('Verify presign settlement', () => {
     });
 
     it('Operator add whitelist for WSOL successfully', async () => {
-      const whitelistToken = getWhitelistPda(WSOL_MINT);
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: WSOL_MINT,
-        amount: 0.001 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.001 * LAMPORTS_PER_SOL),
         connection: connection,
       });
       const transaction = new Transaction().add(...addWhitelistIns);
@@ -129,20 +117,18 @@ describe('Verify presign settlement', () => {
 
   describe('Deposit and verify presign settlement with SOL', () => {
     const userEphemeralKey = Keypair.generate();
-    const secondEphemeralKey = Keypair.generate();
     const pmmKey = Keypair.generate();
     const refundKey = Keypair.generate();
     const sessionId = BigInt(keccak256(toUtf8Bytes(crypto.randomUUID())));
     const [fromToken, toToken] = createTokenPair();
     const amount = 0.05 * LAMPORTS_PER_SOL;
     let settlementPresign: string;
-    let secondPresign: string;
     const depositParams = {
       sessionId,
       userPubkey: user.publicKey,
       mpcPubkey: mpc.publicKey,
       userEphemeralPubkey: userEphemeralKey.publicKey,
-      amount: amount,
+      amount: BigInt(amount),
       connection: connection,
       scriptTimeout: Math.floor(Date.now() / 1000) + 3000,
       fromToken,
@@ -162,7 +148,7 @@ describe('Verify presign settlement', () => {
         const transaction = new Transaction().add(...instructions);
         transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
         transaction.feePayer = deployer.publicKey;
-        const sig = await sendAndConfirmTransaction(connection, transaction, [user, userEphemeralKey, deployer], { commitment: 'confirmed' });
+        await sendAndConfirmTransaction(connection, transaction, [user, userEphemeralKey, deployer], { commitment: 'confirmed' });
       } catch (error) {
         console.log('Error: ', error);
         throw error;
@@ -409,11 +395,10 @@ describe('Verify presign settlement', () => {
   });
 
   describe('Deposit and verify presign settlement with Tokens', () => {
-    let mint = Keypair.generate();
+    const mint = Keypair.generate();
     let tradeId: string;
     let settlementPresign: string;
-    let tokenMint = mint.publicKey;
-    let vaultAta: any;
+    const tokenMint = mint.publicKey;
     const userEphemeralKey = Keypair.generate();
     const refundKey = Keypair.generate();
     const pmmKey = Keypair.generate();
@@ -425,7 +410,7 @@ describe('Verify presign settlement', () => {
       userPubkey: user.publicKey,
       mpcPubkey: mpc.publicKey,
       userEphemeralPubkey: userEphemeralKey.publicKey,
-      amount: amount,
+      amount: BigInt(amount),
       connection: anchorProvider.connection,
       scriptTimeout: Math.floor(Date.now() / 1000) + 3000,
       fromToken,
@@ -434,7 +419,6 @@ describe('Verify presign settlement', () => {
       refundPubkey: refundKey.publicKey,
       toUserAddress: '0x9fc3da866e7df3a1c57ade1a97c9f00a70f010c8',
     }
-    const isNativeToken = fromToken.tokenSymbol === 'SOL';
     before(async () => {
       await createMint(
         connection,
@@ -457,7 +441,7 @@ describe('Verify presign settlement', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: tokenMint,
-        amount: 0.001 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.001 * LAMPORTS_PER_SOL),
         connection: connection,
       });
 

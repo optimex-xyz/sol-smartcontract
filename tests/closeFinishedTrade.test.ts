@@ -4,39 +4,34 @@ import {
   AccountMeta,
   Keypair,
   LAMPORTS_PER_SOL,
-  NONCE_ACCOUNT_LENGTH,
   PublicKey,
   sendAndConfirmTransaction,
-  SystemProgram,
   Transaction,
 } from '@solana/web3.js';
 import dotenv from 'dotenv';
-import { expect, assert } from 'chai';
-import { airdropTokenToUser, createAccount, createTokenPair, getBlockTime, getTokenBalance, sleep } from './utils';
+import { assert } from 'chai';
+import { airdropTokenToUser, createTokenPair, getBlockTime, getTokenBalance, sleep } from './utils';
 import { keccak256, toUtf8Bytes } from 'ethers';
 import { solverAddress } from './example-data';
 import {
   createMint,
   getAssociatedTokenAddress,
-  setTransferFeeInstructionData,
   TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
-import { bigintToBytes32, DepositInstructionParam, getProtocolPda, getUserTradeDetailPda, getVaultPda } from '../solana-js/dist';
+import { bigintToBytes32, getProtocolPda, getUserTradeDetailPda } from '../solana-js';
+import { DepositInstructionParam } from '../solana-js/instructions/deposit';
 import { delay } from '../scripts/utils/helper';
-import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions, createDepositAndVaultAtaIfNeededInstructions } from '../solana-js/instructions/deposit';
+import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions  } from '../solana-js/instructions/deposit';
 import { createAssociatedTokenAccountInstructionIfNeeded } from '../solana-js/instructions/helpers';
 import { createInitializeProgramInstructions } from '../solana-js/instructions/intialize';
 import { createAddOperatorInstruction } from '../solana-js/instructions/manage_operator';
 import { createAddOrUpdateWhitelistInstruction, createSetCloseWaitDurationInstruction } from '../solana-js/instructions/manage_config';
-import { createSetTotalFeeInstructions } from '../solana-js/instructions/set_total_fee';
 import { WSOL_MINT } from '../solana-js/constants';
 import { getNonceCheckPda, getTradeVaultPda } from '../solana-js/pda/get_pda_address';
 import { getTradeDetailData } from '../solana-js/pda/get_pda_data';
 import { createCloseFinishedTradeInstructions } from '../solana-js/instructions/close_finished_trade';
 import { getTradeInput } from '../solana-js/utils/param_utils';
 dotenv.config();
-
-type TradeDetail = anchor.IdlTypes<OptimexSolSmartcontract>['tradeDetail'];
 
 describe('Close finished trade functional testing', () => {
   // Configure the client to use the local cluster.
@@ -53,7 +48,6 @@ describe('Close finished trade functional testing', () => {
   const pmm = Keypair.generate();
   const protocolPda = getProtocolPda();
   const operator = Keypair.generate();
-  let fakeVaultPda: PublicKey;
 
   describe('Setup program', async () => {
     it('Deploy init success', async () => {
@@ -108,7 +102,7 @@ describe('Close finished trade functional testing', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: WSOL_MINT,
-        amount: 0.001 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.001 * LAMPORTS_PER_SOL),
         connection: connection,
       });
       const addWhitelistTransaction = new Transaction().add(...addWhitelistIns);
@@ -119,7 +113,7 @@ describe('Close finished trade functional testing', () => {
         userPubkey: user.publicKey,
         mpcPubkey: mpcKey.publicKey,
         userEphemeralPubkey: userEphemeralKey.publicKey,
-        amount,
+        amount: BigInt(amount),
         connection,
         scriptTimeout: await getBlockTime(connection) + 3,
         fromToken,
@@ -154,9 +148,7 @@ describe('Close finished trade functional testing', () => {
 
     it('Settlement() success', async () => {
       const vaultPda = getTradeVaultPda(correctTradeId);
-      fakeVaultPda = vaultPda;
       const beforeVaultBalance = await connection.getBalance(vaultPda, 'confirmed');
-      const userTradeDetailBalance = await connection.getBalance(correctUserTradeDetail, 'confirmed');
       const beforeUserBalance = await connection.getBalance(user.publicKey, 'confirmed');
       const beforePmmBalance = await connection.getBalance(pmm.publicKey, 'confirmed');
       const nonceCheckPda = getNonceCheckPda(userEphemeralKey.publicKey);
@@ -226,7 +218,7 @@ describe('Close finished trade functional testing', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: WSOL_MINT,
-        amount: 0.001 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.001 * LAMPORTS_PER_SOL),
         connection: connection,
       });
       const addWhitelistTransaction = new Transaction().add(...addWhitelistIns);
@@ -237,7 +229,7 @@ describe('Close finished trade functional testing', () => {
         userPubkey: user.publicKey,
         mpcPubkey: mpcKey.publicKey,
         userEphemeralPubkey: userEphemeralKey.publicKey,
-        amount,
+        amount: BigInt(amount),
         connection,
         scriptTimeout: await getBlockTime(connection) + 3,
         fromToken,
@@ -272,9 +264,7 @@ describe('Close finished trade functional testing', () => {
 
     it('Settlement() success', async () => {
       const vaultPda = getTradeVaultPda(correctTradeId);
-      fakeVaultPda = vaultPda;
       const beforeVaultBalance = await connection.getBalance(vaultPda, 'confirmed');
-      const userTradeDetailBalance = await connection.getBalance(correctUserTradeDetail, 'confirmed');
       const beforeUserBalance = await connection.getBalance(user.publicKey, 'confirmed');
       const beforePmmBalance = await connection.getBalance(pmm.publicKey, 'confirmed');
       const nonceCheckPda = getNonceCheckPda(userEphemeralKey.publicKey);
@@ -342,7 +332,7 @@ describe('Close finished trade functional testing', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: WSOL_MINT,
-        amount: 0.001 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.001 * LAMPORTS_PER_SOL),
         connection: connection,
       });
       const addWhitelistTransaction = new Transaction().add(...addWhitelistIns);
@@ -353,7 +343,7 @@ describe('Close finished trade functional testing', () => {
         userPubkey: user.publicKey,
         mpcPubkey: mpcKey.publicKey,
         userEphemeralPubkey: userEphemeralKey.publicKey,
-        amount,
+        amount: BigInt(amount),
         connection,
         scriptTimeout: await getBlockTime(connection) + 5,
         fromToken,
@@ -455,7 +445,7 @@ describe('Close finished trade functional testing', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: tokenMint,
-        amount: 0.001 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.001 * LAMPORTS_PER_SOL),
         connection: connection,
       });
       const addWhitelistTransaction = new Transaction().add(...addWhitelistIns);
@@ -467,7 +457,7 @@ describe('Close finished trade functional testing', () => {
         userPubkey: user.publicKey,
         mpcPubkey: mpcKey.publicKey,
         userEphemeralPubkey: userEphemeralKey.publicKey,
-        amount,
+        amount: BigInt(amount),
         connection,
         scriptTimeout: await getBlockTime(connection) + 3,
         fromToken,

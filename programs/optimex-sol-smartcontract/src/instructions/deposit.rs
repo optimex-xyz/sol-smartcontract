@@ -69,7 +69,7 @@ pub fn handler_deposit<'c: 'info, 'info>(
     }
 
     // Validate the deposit amount
-    let number_from_bytes = bytes_to_u64_number(&deposit_args.input.trade_info.amount_in);
+    let number_from_bytes = bytes_to_u64_number(&deposit_args.input.trade_info.amount_in)?;
     if number_from_bytes <= 0 {
         return err!(CustomError::DepositZeroAmount);
     }

@@ -1,9 +1,9 @@
-import { BN, ProgramAccount } from '@coral-xyz/anchor';
-import { getMint, MintLayout } from '@solana/spl-token';
+import { BorshCoder, Instruction, ProgramAccount } from '@coral-xyz/anchor';
 import { Connection, PublicKey, sendAndConfirmTransaction, Transaction } from '@solana/web3.js';
-import { createAddFeeReceiverInstruction, createAddOrUpdateWhitelistInstruction, createAssociatedTokenAccountInstructionIfNeeded, createRemoveFeeReceiverInstruction, createRemoveWhitelistInstruction, createWithdrawTotalFeeInstruction, getOptimexProgram, getConfigPda, getProtocolPda, getWhitelistPda, PaymentReceipt, TradeDetail, tradeIdBytesToString } from "optimex-solana-js";
+import { createAddFeeReceiverInstruction, createAddOrUpdateWhitelistInstruction, createAssociatedTokenAccountInstructionIfNeeded, createRemoveFeeReceiverInstruction, createRemoveWhitelistInstruction, createWithdrawTotalFeeInstruction, getOptimexProgram, getConfigPda, getProtocolPda, getWhitelistPda, PaymentReceipt, TradeDetail, tradeIdBytesToString, createInitializeProgramInstructions, createAddOperatorInstruction, createRemoveOperatorInstruction, createSetCloseWaitDurationInstruction } from "../../solana-js";
 import { Command, Option } from 'commander';
 import { getKeypairFromFile } from '../utils/helper';
+import bs58 from 'bs58';
 
 const program = new Command();
 
@@ -11,6 +11,34 @@ const commonOptions = [
     new Option('-u, --url <string>', 'The network url, devnet default').default('https://api.devnet.solana.com'),
     new Option('--commitment <string>', 'The commitment level').default('confirmed')
 ]
+
+program.command('initialize')
+.description('Initialize the optimex program')
+.addOption(commonOptions[0])
+.addOption(commonOptions[1])
+.requiredOption('--authority <string>', 'The path to authority keypair, who is the deployer of the program')
+.requiredOption('--admin <string>', 'The address of admin')
+.action(async (options) => {
+    const commitment = options.commitment || 'confirmed';
+    const connection = new Connection(options.url, commitment);
+    const authorityKeypair = await getKeypairFromFile(options.authority);
+    const adminPubkey = new PublicKey(options.admin);
+    const createInitializeInstruction = await createInitializeProgramInstructions({
+        signer: authorityKeypair.publicKey,
+        admin: adminPubkey,
+        connection,
+    })
+
+    console.log(`Start to initialize program`);
+    try {
+        const transaction = new Transaction().add(...createInitializeInstruction);
+        const txHash = await sendAndConfirmTransaction(connection, transaction, [authorityKeypair], commitment);
+        console.log(`Initialize program success tx hash: ${txHash}`);
+    } catch (error) {
+        console.log('Initialize program failed');
+        console.log(error);
+    }
+})
 
 const fetchCommand = program.command('fetch')
 .description('Fetch account data for from the optimex program')
@@ -37,6 +65,7 @@ fetchCommand.command('config')
         })
     } catch (error) {
         console.error('Fetch config error, maybe the program is not initialized yet');
+        console.log(error);
     }
 })
 
@@ -346,6 +375,197 @@ program.command('withdraw-fee')
     } catch (error) {
         console.error('Withdraw fee failed');
         throw error;
+    }
+})
+
+program.command('add-operator')
+.description('Add the operator')
+.addOption(commonOptions[0])
+.addOption(commonOptions[1])
+.requiredOption('--admin <string>', 'The path to admin keypair')
+.requiredOption('--operator <string>', 'The operator address')
+.action(async (options) => {
+    const commitment = options.commitment || 'confirmed';
+    const connection = new Connection(options.url, commitment);
+    const admin = await getKeypairFromFile(options.admin);
+    const operator = new PublicKey(options.operator);
+
+    const addOperatorInstruction = await createAddOperatorInstruction({
+        connection,
+        signer: admin.publicKey,
+        operator,
+    })
+
+    try {
+        const transaction = new Transaction().add(...addOperatorInstruction);
+        const txHash = await sendAndConfirmTransaction(connection, transaction, [admin], commitment);
+        console.log(`Add operator success tx hash: ${txHash}`);
+    } catch (error) {
+        console.error('Add operator failed');
+        throw error;
+    }
+})
+
+program.command('remove-operator')
+.description('Remove the operator')
+.addOption(commonOptions[0])
+.addOption(commonOptions[1])
+.requiredOption('--admin <string>', 'The path to admin keypair')
+.requiredOption('--operator <string>', 'The operator address')
+.action(async (options) => {
+    const commitment = options.commitment || 'confirmed';
+    const connection = new Connection(options.url, commitment);
+    const admin = await getKeypairFromFile(options.admin);
+    const operator = new PublicKey(options.operator);
+
+    const removeOperatorInstruction = await createRemoveOperatorInstruction({
+        connection,
+        signer: admin.publicKey,
+        operator,
+    })
+
+    try {
+        const transaction = new Transaction().add(...removeOperatorInstruction);
+        const txHash = await sendAndConfirmTransaction(connection, transaction, [admin], commitment);
+        console.log(`Remove operator success tx hash: ${txHash}`);
+    } catch (error) {
+        console.error('Remove operator failed');
+        throw error;
+    }
+})
+
+program.command('set-close-duration')
+.description('Set the close duration for closing finished trade and payment receipt')
+.addOption(commonOptions[0])
+.addOption(commonOptions[1])
+.requiredOption('--operator <string>', 'The path to operator keypair')
+.requiredOption('--close-trade-duration <number>', 'The duration for closing finished trade')
+.requiredOption('--close-payment-duration <number>', 'The duration for closing payment receipt')
+.action(async (options) => {
+    const commitment = options.commitment || 'confirmed';
+    const connection = new Connection(options.url, commitment);
+    const operator = await getKeypairFromFile(options.operator);
+
+    const closeWaitDurationInstruction = await createSetCloseWaitDurationInstruction({
+        operator: operator.publicKey,    
+        closeTradeDuration: options.closeTradeDuration ? options.closeTradeDuration : null,
+        closePaymentDuration: options.closePaymentDuration ? options.closePaymentDuration : null,
+        connection,
+    })
+
+    try {
+        const transaction = new Transaction().add(...closeWaitDurationInstruction);
+        const txHash = await sendAndConfirmTransaction(connection, transaction, [operator], commitment);
+        console.log(`Set close wait duration success tx hash: ${txHash}`);
+    } catch (error) {
+        console.error('Set close wait duration failed');
+        throw error;
+    }
+})
+
+program.command('parse-transaction')
+.description('Parse transaction, show type and input of the transaction')
+.addOption(commonOptions[0])
+.addOption(commonOptions[1])
+.requiredOption('--txHash <string>', 'The transaction hash')
+.action(async (options) => {
+    const commitment = options.commitment || 'confirmed';
+    const connection = new Connection(options.url, commitment);
+
+    const parsedTransaction = await connection.getParsedTransaction(options.txHash, {
+        commitment,
+        maxSupportedTransactionVersion: 0,
+    });
+
+    const program = await getOptimexProgram(connection);
+    const coder = new BorshCoder(program.rawIdl);
+
+    const optimexInstructions = []
+    .concat(parsedTransaction.transaction.message.instructions)
+    .concat((parsedTransaction.meta?.innerInstructions ?? []).map((instruction) => instruction.instructions).flat())
+    .filter((instruction) => instruction.programId?.toBase58() === program.programId.toBase58())
+
+    const slot = parsedTransaction.slot;
+    const slotTime = await connection.getBlockTime(slot);
+    console.log(`Perform at slot ${parsedTransaction.slot} at time ${new Date(slotTime * 1000)}`)
+    const handleDeposit = (decoded: Instruction) => {
+        const depositInsData = decoded.data['deposit_args'];
+        const tradeId = tradeIdBytesToString(depositInsData['trade_id']);
+        const sessionId = tradeIdBytesToString(depositInsData['input']['session_id'])
+        const solver = '0x' + Buffer.from(depositInsData['input']['solver']).toString('hex')
+        const amountIn = BigInt(
+          '0x' + Buffer.from(depositInsData['input']['trade_info']['amount_in']).toString('hex')
+        ).toString()
+        const fromChainUser = depositInsData['input']['trade_info']['from_chain'][0].toString()
+        const fromChainNetworkId = depositInsData['input']['trade_info']['from_chain'][1].toString()
+        const fromChainTokenId = depositInsData['input']['trade_info']['from_chain'][2].toString()
+        const toChainUser = depositInsData['input']['trade_info']['to_chain'][0].toString()
+        const toChainNetworkId = depositInsData['input']['trade_info']['to_chain'][1].toString()
+        const toChainTokenId = depositInsData['input']['trade_info']['to_chain'][2].toString()
+        const dataIns = {
+          tradeId,
+          input: {
+            sessionId,
+            solver,
+            tradeInfo: {
+              amountIn,
+              fromChain: { user: fromChainUser, networkId: fromChainNetworkId, tokenId: fromChainTokenId },
+              toChain: { user: toChainUser, networkId: toChainNetworkId, tokenId: toChainTokenId },
+            },
+          },
+        }
+        console.log(`DEPOSIT: `, JSON.stringify(dataIns, null, 2))
+    }
+
+    const handleClaimInstruction = (decoded: Instruction) => {
+        const tradeId = tradeIdBytesToString(decoded.data['claim_args']['trade_id'])
+        console.log(`CLAIM: ${tradeId}`)
+    }
+
+    const handleSettlementInstruction = (decoded: Instruction) => {
+        const tradeId = tradeIdBytesToString(decoded.data['settle_args']['trade_id'])
+        console.log(`SETTLEMENT: ${tradeId}`)
+    }
+
+    const handlePaymentInstruction = (decoded: Instruction) => {
+        const paymentInsData = decoded.data['payment_args']
+        const tradeId = tradeIdBytesToString(paymentInsData['trade_id'])
+        const amount = paymentInsData['amount']
+        const totalFee = paymentInsData['total_fee']
+        const deadline = paymentInsData['deadline']
+        const token = paymentInsData['token']
+        const dataIns = {
+          tradeId,
+          amount: amount.toString(),
+          totalFee: totalFee.toString(),
+          deadline: new Date(deadline.toNumber() * 1000),
+          token,
+        }    
+
+        console.log(`PAYMENT: `, JSON.stringify(dataIns, null, 2))
+    }
+
+    for (const instruction of optimexInstructions) {
+        if (!('data' in instruction)) {
+            continue
+        }
+        const decoded = coder.instruction.decode(Buffer.from(bs58.decode(instruction.data)));
+        switch (decoded.name) {
+            case 'deposit':
+                handleDeposit(decoded);
+                break;
+            case 'claim':
+                handleClaimInstruction(decoded);
+                break;
+            case 'settlement':
+                handleSettlementInstruction(decoded);
+                break;
+            case 'payment':
+                handlePaymentInstruction(decoded);
+                break;
+            default:
+                console.log(`Unknown instruction ${decoded.name}`)
+        }
     }
 })
 

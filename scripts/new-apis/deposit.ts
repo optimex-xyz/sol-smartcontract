@@ -1,10 +1,9 @@
-import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions, DepositInstructionParam, getTradeInput } from "optimex-solana-js";
+import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions, DepositInstructionParam, getTradeInput } from "../../solana-js";
 import { keccak256, toUtf8Bytes  } from 'ethers';
 import { clusterApiUrl, LAMPORTS_PER_SOL, sendAndConfirmTransaction, Transaction } from '@solana/web3.js';
 import { getKeypairFromFile } from '../utils/helper';
 import { Connection } from '@solana/web3.js';
 import { getBlockTime } from '../utils/helper';
-import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
 (async () => {
@@ -22,7 +21,7 @@ import crypto from 'crypto';
         userPubkey: user.publicKey,
         mpcPubkey: mpc.publicKey,
         userEphemeralPubkey: userEphemeral.publicKey,
-        amount: 0.1 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.1 * LAMPORTS_PER_SOL),
         connection: connection,
         scriptTimeout,
         fromToken: {

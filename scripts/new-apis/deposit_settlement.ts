@@ -3,7 +3,7 @@ import { clusterApiUrl, Connection, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmT
 import { keccak256, toUtf8Bytes } from "ethers";
 import path from 'path';
 import { getBlockTime } from "../utils/helper";
-import { createAssociatedTokenAccountInstructionIfNeeded, createDepositAndVaultAtaIfNeededAndNonceAccountInstructions, createUserPresignSettlementTransactionAndSerializeToString, DepositInstructionParam, getNonceCheckPda, getProtocolPda, /*  */getTradeInput } from "optimex-solana-js";
+import { createAssociatedTokenAccountInstructionIfNeeded, createDepositAndVaultAtaIfNeededAndNonceAccountInstructions, createUserPresignSettlementTransactionAndSerializeToString, DepositInstructionParam, getNonceCheckPda, getProtocolPda, /*  */getTradeInput } from "../../solana-js";
 
 (async () => {
     const connection = new Connection(clusterApiUrl('devnet'));
@@ -25,7 +25,7 @@ import { createAssociatedTokenAccountInstructionIfNeeded, createDepositAndVaultA
         userPubkey: user.publicKey,
         mpcPubkey: mpc.publicKey,
         userEphemeralPubkey: userEphemeral.publicKey,
-        amount: 0.1 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.1 * LAMPORTS_PER_SOL),
         connection: connection,
         scriptTimeout,
         fromToken: {

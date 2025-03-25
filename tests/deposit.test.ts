@@ -6,20 +6,18 @@ import {
   LAMPORTS_PER_SOL,
   PublicKey,
   sendAndConfirmTransaction,
-  SYSVAR_RECENT_BLOCKHASHES_PUBKEY,
-  SYSVAR_RENT_PUBKEY,
   Transaction,
 } from '@solana/web3.js';
 import dotenv from 'dotenv';
 import { expect, assert } from 'chai';
-import { airdropTokenToUser, createAccount, createTokenPair, getBlockTime, getTokenBalance, sleep } from './utils';
+import { airdropTokenToUser, createTokenPair, getBlockTime, getTokenBalance } from './utils';
 import { keccak256, toUtf8Bytes } from 'ethers';
-import _ from 'lodash';
 import { solverAddress } from './example-data';
 import {
   createMint,
 } from '@solana/spl-token';
-import { bigintToBytes32, DepositInstructionParam, encodeAddress, getProtocolPda, getUserTradeDetailPda, getVaultPda, TradeInput, TradeDetailInput, parseEtherToBytes32 } from '../solana-js/dist';
+import { bigintToBytes32, encodeAddress, getUserTradeDetailPda, TradeInput, TradeDetailInput, parseEtherToBytes32 } from '../solana-js';
+import { DepositInstructionParam } from '../solana-js/instructions/deposit';
 import { createInitializeProgramInstructions } from '../solana-js/instructions/intialize';
 import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions } from '../solana-js/instructions/deposit';
 import { createAddOperatorInstruction } from '../solana-js/instructions/manage_operator';
@@ -44,8 +42,6 @@ describe('Deposit () functional testing', () => {
   const deployer = (anchorProvider.wallet as anchor.Wallet).payer;
   const operator = Keypair.generate();
   const user = Keypair.generate();
-  const vaultPda = getVaultPda();
-  const protocolPda = getProtocolPda();
   let rentForSpace8: number;
 
 
@@ -85,7 +81,7 @@ describe('Deposit () functional testing', () => {
       const instructions = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: WSOL_MINT,
-        amount: 0.001 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.001 * LAMPORTS_PER_SOL),
         connection: connection,
       });
       const transaction = new Transaction().add(...instructions);
@@ -108,7 +104,7 @@ describe('Deposit () functional testing', () => {
     const amount = 0.1 * LAMPORTS_PER_SOL;
     let correctTradeInput: TradeInput;
     let correctTradeId: string;
-    let correctDepositAmount: BigInt | number;
+    let correctDepositAmount: bigint;
     let correctTradeDetail: TradeDetailInput;
     let correctTradeIdBytes: number[];
     let correctUserTradeDetail: PublicKey;
@@ -120,7 +116,7 @@ describe('Deposit () functional testing', () => {
         userPubkey: user.publicKey,
         mpcPubkey: mpcKey.publicKey,
         userEphemeralPubkey: userEphemeralKey.publicKey,
-        amount,
+        amount: BigInt(amount),
         connection,
         scriptTimeout: await getBlockTime(connection) + 30,
         fromToken,
@@ -325,7 +321,7 @@ describe('Deposit () functional testing', () => {
   });
 
   describe('Deposit() with Token', () => {
-    let mint = Keypair.generate();
+    const mint = Keypair.generate();
     const tokenMint = mint.publicKey;
     const [fromToken, toToken] = createTokenPair(tokenMint.toBase58());
     const userEphemeralKey = Keypair.generate();
@@ -334,12 +330,8 @@ describe('Deposit () functional testing', () => {
     const mpcKey = Keypair.generate();
     const sessionId = BigInt(keccak256(toUtf8Bytes(crypto.randomUUID())));
     const amount = 0.1 * tokenUnit;
-    let correctTradeInput: TradeInput;
     let correctTradeId: string;
-    let correctDepositAmount: BigInt | number;
-    let correctTradeDetail: TradeDetailInput;
-    let correctTradeIdBytes: number[];
-    let correctUserTradeDetail: PublicKey;
+    let correctDepositAmount: bigint | number;
     let depositParam: DepositInstructionParam;
     let whitelistToken: PublicKey;
     before(async () => {
@@ -358,7 +350,7 @@ describe('Deposit () functional testing', () => {
         userPubkey: user.publicKey,
         mpcPubkey: mpcKey.publicKey,
         userEphemeralPubkey: userEphemeralKey.publicKey,
-        amount,
+        amount: BigInt(amount),
         connection,
         scriptTimeout: await getBlockTime(connection) + 30,
         fromToken,
@@ -367,23 +359,15 @@ describe('Deposit () functional testing', () => {
         solver: solverAddress,
         refundPubkey: refundKey.publicKey,
       };
-      ({ tradeInput: correctTradeInput, tradeId: correctTradeId, amount: correctDepositAmount } = await getTradeInput(depositParam));
+      ({ tradeId: correctTradeId, amount: correctDepositAmount } = await getTradeInput(depositParam));
 
-      correctTradeDetail = {
-        timeout: new anchor.BN(Math.floor(Date.now() / 1000) + 3000),
-        mpcPubkey: mpcKey.publicKey,
-        refundPubkey: refundKey.publicKey,
-      };
-
-      correctTradeIdBytes = bigintToBytes32(BigInt(correctTradeId));
-      correctUserTradeDetail = getUserTradeDetailPda(correctTradeId);
       whitelistToken = getWhitelistPda(tokenMint);
       await airdropTokenToUser(connection, tokenMint, deployer, user.publicKey, 1000 * tokenUnit)
 
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: tokenMint,
-        amount: 0.001 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.001 * LAMPORTS_PER_SOL),
         connection,
       });
       const addWhitelistTransaction = new Transaction().add(...addWhitelistIns);
@@ -393,7 +377,7 @@ describe('Deposit () functional testing', () => {
     it('Deposit failed because of invalid whitelist amount', async () => {
       const newDepositParam = {
         ...depositParam,
-        amount: 0.0001 * tokenUnit, 
+        amount: BigInt(0.0001 * tokenUnit), 
       }
       const depositIns = await createDepositAndVaultAtaIfNeededAndNonceAccountInstructions(newDepositParam);
       const transaction = new Transaction().add(...depositIns);
@@ -437,12 +421,12 @@ describe('Deposit () functional testing', () => {
       const userEphemeralKey = Keypair.generate();
       await createMint(connection, deployer, deployer.publicKey, null, 8, newMint, { commitment: 'confirmed' });
       const newTokenMint = newMint.publicKey;
-      const [fromToken, toToken] = createTokenPair(newTokenMint.toBase58());
+      const [fromToken] = createTokenPair(newTokenMint.toBase58());
       const newDepositParam = {
         ...depositParam,
         fromToken,
       }
-      const { tradeInput, tradeId, amount } = await getTradeInput(newDepositParam);
+      const { tradeInput, tradeId } = await getTradeInput(newDepositParam);
       const tradeIdBytes = bigintToBytes32(BigInt(tradeId));
       const tradeDetail = {
         timeout: new anchor.BN(Math.floor(Date.now() / 1000) + 3000),

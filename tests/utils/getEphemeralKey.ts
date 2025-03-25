@@ -43,7 +43,7 @@ export function getUserEphemeralKeys(tradeId: number[]): {
   ephemeralL2Key: string;
   ephemeralL2Pubkey: string;
 } {
-  let tradeIdStr = numberArrayToHexString(tradeId);
+  const tradeIdStr = numberArrayToHexString(tradeId);
   const hash: string = keccak256(tradeIdStr);
   const signature = nacl.sign.detached(toUtf8Bytes(hash), testUserKP.secretKey);
   const { ephemeralAssetKey, ephemeralL2Key } = getEphemeralPrivateKeys(

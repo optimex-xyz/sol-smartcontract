@@ -4,7 +4,7 @@ import { keccak256, toUtf8Bytes } from "ethers";
 import path from 'path';
 import crypto from 'crypto';
 import { delay, getBlockTime } from "../utils/helper";
-import { createClaimAndRefundAtaAndProtocolAtaIfNeededInstructions, createDepositAndVaultAtaIfNeededAndNonceAccountInstructions, DepositInstructionParam, getTradeInput } from "optimex-solana-js";
+import { createClaimAndRefundAtaAndProtocolAtaIfNeededInstructions, createDepositAndVaultAtaIfNeededAndNonceAccountInstructions, DepositInstructionParam, getTradeInput } from "../../solana-js";
 
 (async () => {
     const connection = new Connection(clusterApiUrl('devnet'));
@@ -12,7 +12,6 @@ import { createClaimAndRefundAtaAndProtocolAtaIfNeededInstructions, createDeposi
     const user = await getKeypairFromFile(path.join(currentDir, '../../.wallets/user.json'));
     const userEphemeral = await getKeypairFromFile(path.join(currentDir, '../../.wallets/ephemeral.json'));
     const mpc = await getKeypairFromFile(path.join(currentDir, '../../.wallets/mpc.json'));
-    const pmm = await getKeypairFromFile(path.join(currentDir, '../../.wallets/pmm.json'));
     const refund = await getKeypairFromFile(path.join(currentDir, '../../.wallets/refund.json'));
     const sessionId = BigInt(keccak256(toUtf8Bytes(crypto.randomUUID())));
     console.log(`Session ID: ${sessionId}`);

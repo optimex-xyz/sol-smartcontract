@@ -1,8 +1,8 @@
-import { clusterApiUrl, NONCE_ACCOUNT_LENGTH, PublicKey, sendAndConfirmTransaction, SystemProgram, Transaction } from '@solana/web3.js';
+import { clusterApiUrl, sendAndConfirmTransaction, Transaction } from '@solana/web3.js';
 import { getKeypairFromFile } from '../utils/helper';
 import { Connection } from '@solana/web3.js';
 import path from 'path';
-import { createCloseFinishedTradeInstructions, createClosePaymentReceiptInstructions, getPaymentReceiptAddresses } from "optimex-solana-js";
+import { createClosePaymentReceiptInstructions, getPaymentReceiptAddresses } from "../../solana-js";
 
 (async () => {
     const currentDir = __dirname;

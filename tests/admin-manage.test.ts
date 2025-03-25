@@ -1,6 +1,4 @@
 import * as anchor from '@coral-xyz/anchor';
-import { Program } from '@coral-xyz/anchor';
-import { OptimexSolSmartcontract } from '../target/types/optimex_sol_smartcontract';
 import {
   Keypair,
   LAMPORTS_PER_SOL,
@@ -10,7 +8,6 @@ import {
 } from '@solana/web3.js';
 import dotenv from 'dotenv';
 import { expect, assert } from 'chai';
-import { getProtocolPda, getVaultPda } from '../solana-js/pda/get_pda_address';
 import { createInitializeProgramInstructions } from '../solana-js/instructions/intialize';
 import { createAddOperatorInstruction, createRemoveOperatorInstruction } from '../solana-js/instructions/manage_operator';
 import { getConfigData, getFeeReceiverData, getWhitelistTokenData } from '../solana-js/pda/get_pda_data';
@@ -27,14 +24,9 @@ describe('Admin manage functional testing', () => {
   const connection = anchorProvider.connection;
   anchor.setProvider(anchorProvider);
 
-  const program = anchor.workspace
-    .OptimexSolSmartcontract as Program<OptimexSolSmartcontract>;
-
   const deployer = (anchorProvider.wallet as anchor.Wallet).payer;
   const admin = Keypair.generate();
   const oldAdmin = Keypair.generate();
-  const vaultPda = getVaultPda();
-  const protocolPda = getProtocolPda();
 
   before('Setup', async () => {
     await connection.requestAirdrop(admin.publicKey, 10 * LAMPORTS_PER_SOL);
@@ -272,7 +264,7 @@ describe('Admin manage functional testing', () => {
         operator: newOperator.publicKey,
         token: WSOL_MINT,
         connection,
-        amount: minAmount,
+        amount: BigInt(minAmount),
       });
       const transaction = new Transaction().add(...instruction);
       try {
@@ -292,7 +284,7 @@ describe('Admin manage functional testing', () => {
         operator: fakeOperator.publicKey,
         token: WSOL_MINT,
         connection,
-        amount: minAmount,
+        amount: BigInt(minAmount),
       });
       const transaction = new Transaction().add(...instruction);
       try {

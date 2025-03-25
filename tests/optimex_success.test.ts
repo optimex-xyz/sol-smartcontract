@@ -2,7 +2,6 @@ import * as anchor from '@coral-xyz/anchor';
 import { Program } from '@coral-xyz/anchor';
 import { OptimexSolSmartcontract } from '../target/types/optimex_sol_smartcontract';
 import {
-  ComputeBudgetProgram,
   Connection,
   Keypair,
   LAMPORTS_PER_SOL,
@@ -11,9 +10,8 @@ import {
   Transaction,
 } from '@solana/web3.js';
 import dotenv from 'dotenv';
-import { expect, use } from 'chai';
 import { airdropTokenToUser, createTokenPair, getBlockTime, getTokenBalance, sleep } from './utils';
-import { keccak256, recoverAddress, toUtf8Bytes } from 'ethers';
+import { keccak256, toUtf8Bytes } from 'ethers';
 import { assert } from 'chai';
 import crypto from 'crypto';
 import { solverAddress } from './example-data';
@@ -23,7 +21,7 @@ import {
   createSyncNativeInstruction,
   getAssociatedTokenAddressSync,
 } from '@solana/spl-token';
-import { getProtocolPda, getTradeVaultPda, getUserTradeDetailPda, getVaultPda, getWhitelistPda } from '../solana-js/pda/get_pda_address';
+import { getProtocolPda, getTradeVaultPda, getUserTradeDetailPda, getVaultPda } from '../solana-js/pda/get_pda_address';
 import { createInitializeProgramInstructions } from '../solana-js/instructions/intialize';
 import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions, DepositInstructionParam } from '../solana-js/instructions/deposit';
 import { createUserPresignSettlementTransactionAndSerializeToString } from '../solana-js/instructions/settlement';
@@ -77,27 +75,28 @@ describe('optimex-sol-smartcontract', () => {
       const transaction = new Transaction().add(...instructions);
       transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
       try {
-        const txHash = await sendAndConfirmTransaction(connection, transaction, [deployer], { commitment: 'confirmed' });
+        await sendAndConfirmTransaction(connection, transaction, [deployer], { commitment: 'confirmed' });
       } catch (error) {
         console.error(error);
         throw error;
       }
 
       // Expect vault and protocol pda is already init
-      let vaultPdaAccountInfo = await connection.getAccountInfo(vaultPda, 'confirmed');
+      const vaultPdaAccountInfo = await connection.getAccountInfo(vaultPda, 'confirmed');
 
-      expect(
-        vaultPdaAccountInfo.owner.toString() === program.programId.toString(),
+      assert.equal(
+        vaultPdaAccountInfo.owner.toString(),
+        program.programId.toString(),
         'Expect owner of vault pda is program smart-contract'
-      ).to.be.true;
+      )
 
-      let protocolPdaAccountInfo = await connection.getAccountInfo(protocolPda);
+      const protocolPdaAccountInfo = await connection.getAccountInfo(protocolPda);
 
-      expect(
-        protocolPdaAccountInfo.owner.toString() ===
+      assert.equal(
+        protocolPdaAccountInfo.owner.toString(),
         program.programId.toString(),
         'Expect owner of protocol pda is program smart-contract'
-      ).to.be.true;
+      )
     });
 
     it('Admin add operator successfully', async () => {
@@ -126,11 +125,10 @@ describe('optimex-sol-smartcontract', () => {
     });
 
     it('Operator add whitelist for WSOL successfully', async () => {
-      const whitelistToken = getWhitelistPda(WSOL_MINT);
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: WSOL_MINT,
-        amount: 0.001 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.001 * LAMPORTS_PER_SOL),
         connection: connection,
       });
       const transaction = new Transaction().add(...addWhitelistIns);
@@ -146,7 +144,7 @@ describe('optimex-sol-smartcontract', () => {
     const refundKey = Keypair.generate();
     const sessionId = BigInt(keccak256(toUtf8Bytes(crypto.randomUUID())));
     const [fromToken, toToken] = createTokenPair();
-    const amount = 0.05 * LAMPORTS_PER_SOL;
+    const amount = BigInt(0.05 * LAMPORTS_PER_SOL);
     const depositParams = {
       sessionId,
       userPubkey: user.publicKey,
@@ -172,18 +170,18 @@ describe('optimex-sol-smartcontract', () => {
         const transaction = new Transaction().add(...instructions);
         transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
         transaction.feePayer = deployer.publicKey;
-        const sig = await sendAndConfirmTransaction(connection, transaction, [user, userEphemeralKey, deployer], { commitment: 'confirmed' });
+        await sendAndConfirmTransaction(connection, transaction, [user, userEphemeralKey, deployer], { commitment: 'confirmed' });
       } catch (error) {
         console.log('Error: ', error);
         throw error;
       }
 
       const afterVaultBalance = await connection.getBalance(vaultPda, { commitment: 'confirmed' });
-      assert.equal(afterVaultBalance - beforeVaultBalance, rentForSpace8 + amount, 'Vault balance should increase by the amount of SOL deposited and init fee');
+      assert.equal(afterVaultBalance - beforeVaultBalance, rentForSpace8 + Number(amount), 'Vault balance should increase by the amount of SOL deposited and init fee');
 
       const userTradeDetail = getUserTradeDetailPda(tradeId);
       const userTradeDetailData = await program.account.tradeDetail.fetch(userTradeDetail);
-      assert.equal(userTradeDetailData.amount.toNumber(), amount, 'User trade detail amount should be the amount of SOL deposited');
+      assert.equal(userTradeDetailData.amount.toNumber(), Number(amount), 'User trade detail amount should be the amount of SOL deposited');
       assert.equal(userTradeDetailData.mpcPubkey.toBase58(), mpc.publicKey.toBase58(), 'User trade detail mpc pubkey should be the mpc pubkey');
       assert.equal(userTradeDetailData.refundPubkey.toBase58(), refundKey.publicKey.toBase58(), 'User trade detail refund pubkey should be the refund pubkey');
       assert.equal(userTradeDetailData.userPubkey.toBase58(), user.publicKey.toBase58(), 'User trade detail user pubkey should be the user pubkey');
@@ -224,7 +222,7 @@ describe('optimex-sol-smartcontract', () => {
         throw error;
       }
       const afterVaultBalance = await connection.getBalance(vaultPda, { commitment: 'confirmed' });
-      assert.equal(beforeVaultBalance - afterVaultBalance, amount, 'Vault balance should increase by the amount of SOL deposited');
+      assert.equal(beforeVaultBalance - afterVaultBalance, Number(amount), 'Vault balance should increase by the amount of SOL deposited');
       const userTradeDetailData = await getTradeDetailData(tradeId, connection);
       const status = userTradeDetailData.status;
       assert.isObject(status.settled, 'User trade settled detail status should be undefined');
@@ -250,7 +248,7 @@ describe('optimex-sol-smartcontract', () => {
       const transaction = new Transaction().add(...closeFinishedTradeIns, withdrawNonceIns);
       transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
       try {
-        const sig = await sendAndConfirmTransaction(connection, transaction, [mpc], { commitment: 'confirmed' });
+        await sendAndConfirmTransaction(connection, transaction, [mpc], { commitment: 'confirmed' });
       } catch (error) {
         console.log('Error: ', error);
         throw error;
@@ -285,7 +283,6 @@ describe('optimex-sol-smartcontract', () => {
       };
 
     })
-    const isNativeToken = fromToken.tokenSymbol === 'SOL';
     it('Should succeed with amount', async () => {
       const instructions = await createDepositAndVaultAtaIfNeededAndNonceAccountInstructions(depositParams)
       const { tradeId } = await getTradeInput(depositParams);
@@ -297,7 +294,7 @@ describe('optimex-sol-smartcontract', () => {
         const transaction = new Transaction().add(...instructions);
         transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
         transaction.feePayer = deployer.publicKey;
-        const sig = await sendAndConfirmTransaction(connection, transaction, [user, userEphemeralKey, deployer], { commitment: 'confirmed' });
+        await sendAndConfirmTransaction(connection, transaction, [user, userEphemeralKey, deployer], { commitment: 'confirmed' });
       } catch (error) {
         console.log('Error: ', error);
         throw error;
@@ -320,7 +317,7 @@ describe('optimex-sol-smartcontract', () => {
       const transaction = new Transaction().add(...claimIns);
       transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
       try {
-        const sig = await sendAndConfirmTransaction(connection, transaction, [user], { commitment: 'confirmed' });
+        await sendAndConfirmTransaction(connection, transaction, [user], { commitment: 'confirmed' });
       } catch (error) {
         console.log('Error: ', error);
         throw error;
@@ -348,7 +345,7 @@ describe('optimex-sol-smartcontract', () => {
       userPubkey: user.publicKey,
       mpcPubkey: mpc.publicKey,
       userEphemeralPubkey: userEphemeralKey.publicKey,
-      amount: amount,
+      amount: BigInt(amount),
       connection: connection,
       scriptTimeout: Math.floor(Date.now() / 1000) + 3000,
       fromToken,
@@ -357,7 +354,6 @@ describe('optimex-sol-smartcontract', () => {
       toUserAddress: '0x9fc3da866e7df3a1c57ade1a97c9f00a70f010c8',
       refundPubkey: refundKey.publicKey,
     };
-    const isNativeToken = fromToken.tokenSymbol === 'SOL';
     it('Should succeed with amount', async () => {
       const { tradeId } = await getTradeInput(depositParams);
       const vaultPda = getTradeVaultPda(tradeId);
@@ -369,7 +365,7 @@ describe('optimex-sol-smartcontract', () => {
         const transaction = new Transaction().add(...instructions);
         transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
         transaction.feePayer = deployer.publicKey;
-        const sig = await sendAndConfirmTransaction(connection, transaction, [user, userEphemeralKey, deployer], { commitment: 'confirmed' });
+        await sendAndConfirmTransaction(connection, transaction, [user, userEphemeralKey, deployer], { commitment: 'confirmed' });
       } catch (error) {
         console.log('Error: ', error);
         throw error;
@@ -394,13 +390,13 @@ describe('optimex-sol-smartcontract', () => {
       const { tradeId } = await getTradeInput(depositParams);
       const setFeeIns = await createSetTotalFeeInstructions({
         tradeId,
-        amount: feeAmount,
+        amount: BigInt(feeAmount),
         connection,
         mpcPubkey: mpc.publicKey,
       })
       const transaction = new Transaction().add(...setFeeIns);
       try {
-        const sig = await sendAndConfirmTransaction(connection, transaction, [mpc], { commitment: 'confirmed' });
+        await sendAndConfirmTransaction(connection, transaction, [mpc], { commitment: 'confirmed' });
       } catch (error) {
         console.log('Error: ', error);
         throw error;
@@ -474,9 +470,8 @@ describe('optimex-sol-smartcontract', () => {
   });
 
   describe('Deposit() and settle successfully with Tokens', () => {
-    let mint = Keypair.generate();
-    let tokenMint = mint.publicKey;
-    let vaultAta: any;
+    const mint = Keypair.generate();
+    const tokenMint = mint.publicKey;
     const userEphemeralKey = Keypair.generate();
     const refundKey = Keypair.generate();
     const pmmKey = Keypair.generate();
@@ -488,7 +483,7 @@ describe('optimex-sol-smartcontract', () => {
       userPubkey: user.publicKey,
       mpcPubkey: mpc.publicKey,
       userEphemeralPubkey: userEphemeralKey.publicKey,
-      amount: amount,
+      amount: BigInt(amount),
       connection: anchorProvider.connection,
       scriptTimeout: Math.floor(Date.now() / 1000) + 3000,
       fromToken,
@@ -497,7 +492,6 @@ describe('optimex-sol-smartcontract', () => {
       refundPubkey: refundKey.publicKey,
       toUserAddress: '0x9fc3da866e7df3a1c57ade1a97c9f00a70f010c8',
     }
-    const isNativeToken = fromToken.tokenSymbol === 'SOL';
     before(async () => {
       await createMint(
         connection,
@@ -520,7 +514,7 @@ describe('optimex-sol-smartcontract', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: tokenMint,
-        amount: 0.001 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.001 * LAMPORTS_PER_SOL),
         connection: connection,
       });
 
@@ -599,9 +593,8 @@ describe('optimex-sol-smartcontract', () => {
   });
 
   describe('Deposit() and claim successfully with Tokens', () => {
-    let mint = Keypair.generate();
-    let tokenMint = mint.publicKey;
-    let vaultAta: any;
+    const mint = Keypair.generate();
+    const tokenMint = mint.publicKey;
     const userEphemeralKey = Keypair.generate();
     const refundKey = Keypair.generate();
     const pmmKey = Keypair.generate();
@@ -616,7 +609,7 @@ describe('optimex-sol-smartcontract', () => {
         userPubkey: user.publicKey,
         mpcPubkey: mpc.publicKey,
         userEphemeralPubkey: userEphemeralKey.publicKey,
-        amount: amount,
+        amount: BigInt(amount),
         connection: anchorProvider.connection,
         scriptTimeout: currentTime + 3,
         fromToken,
@@ -627,7 +620,6 @@ describe('optimex-sol-smartcontract', () => {
       }
 
     })
-    const isNativeToken = fromToken.tokenSymbol === 'SOL';
     before(async () => {
       await createMint(
         connection,
@@ -650,7 +642,7 @@ describe('optimex-sol-smartcontract', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: tokenMint,
-        amount: 0.001 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.001 * LAMPORTS_PER_SOL),
         connection: connection,
       });
       const addWhitelistTransaction = new Transaction().add(...addWhitelistIns);
@@ -699,7 +691,7 @@ describe('optimex-sol-smartcontract', () => {
       const transaction = new Transaction().add(...claimIns);
       const beforeVaultBalance = await getTokenBalance(connection, tokenMint, vaultPda);
       try {
-        const sig = await sendAndConfirmTransaction(connection, transaction, [user], { commitment: 'confirmed' });
+        await sendAndConfirmTransaction(connection, transaction, [user], { commitment: 'confirmed' });
       } catch (error) {
         console.log('Error: ', error);
         throw error;
@@ -712,9 +704,8 @@ describe('optimex-sol-smartcontract', () => {
   });
 
   describe('Deposit(), setFee and settle successfully with Tokens', () => {
-    let mint = Keypair.generate();
-    let tokenMint = mint.publicKey;
-    let vaultAta: any;
+    const mint = Keypair.generate();
+    const tokenMint = mint.publicKey;
     const userEphemeralKey = Keypair.generate();
     const refundKey = Keypair.generate();
     const pmmKey = Keypair.generate();
@@ -727,7 +718,7 @@ describe('optimex-sol-smartcontract', () => {
       userPubkey: user.publicKey,
       mpcPubkey: mpc.publicKey,
       userEphemeralPubkey: userEphemeralKey.publicKey,
-      amount: amount,
+      amount: BigInt(amount),
       connection: anchorProvider.connection,
       scriptTimeout: Math.floor(Date.now() / 1000) + 3000,
       fromToken,
@@ -736,7 +727,6 @@ describe('optimex-sol-smartcontract', () => {
       refundPubkey: refundKey.publicKey,
       toUserAddress: '0x9fc3da866e7df3a1c57ade1a97c9f00a70f010c8',
     }
-    const isNativeToken = fromToken.tokenSymbol === 'SOL';
     before(async () => {
       await createMint(
         connection,
@@ -759,7 +749,7 @@ describe('optimex-sol-smartcontract', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: tokenMint,
-        amount: 0.001 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.001 * LAMPORTS_PER_SOL),
         connection: connection,
       });
       const addWhitelistTransaction = new Transaction().add(...addWhitelistIns);
@@ -805,13 +795,13 @@ describe('optimex-sol-smartcontract', () => {
       const { tradeId } = await getTradeInput(depositParams);
       const setFeeIns = await createSetTotalFeeInstructions({
         tradeId: tradeId,
-        amount: feeAmount,
+        amount: BigInt(feeAmount),
         mpcPubkey: mpc.publicKey,
         connection: connection,
       })
       const transaction = new Transaction().add(...setFeeIns);
       try {
-        const sig = await sendAndConfirmTransaction(connection, transaction, [mpc], { commitment: 'confirmed' });
+        await sendAndConfirmTransaction(connection, transaction, [mpc], { commitment: 'confirmed' });
       } catch (error) {
         console.log('Error: ', error);
         throw error;
@@ -859,8 +849,7 @@ describe('optimex-sol-smartcontract', () => {
   });
 
   describe('Deposit(), setFee and settle successfully with WSOL', () => {
-    let tokenMint = WSOL_MINT;
-    let vaultAta: any;
+    const tokenMint = WSOL_MINT;
     const userEphemeralKey = Keypair.generate();
     const refundKey = Keypair.generate();
     const pmmKey = Keypair.generate();
@@ -889,7 +878,7 @@ describe('optimex-sol-smartcontract', () => {
       userPubkey: user.publicKey,
       mpcPubkey: mpc.publicKey,
       userEphemeralPubkey: userEphemeralKey.publicKey,
-      amount: amount,
+      amount: BigInt(amount),
       connection: anchorProvider.connection,
       scriptTimeout: Math.floor(Date.now() / 1000) + 3000,
       fromToken,
@@ -898,26 +887,14 @@ describe('optimex-sol-smartcontract', () => {
       refundPubkey: refundKey.publicKey,
       toUserAddress: '0x9fc3da866e7df3a1c57ade1a97c9f00a70f010c8',
     };
-    const isNativeToken = fromToken.tokenSymbol === 'SOL';
     before(async () => {
-      const deployerBalance = await connection.getBalance(deployer.publicKey);
-      const wrapSolTxSig = await sendAndConfirmTransaction(connection, wrapSolTx, [deployer], { commitment: 'confirmed' });
+      await sendAndConfirmTransaction(connection, wrapSolTx, [deployer], { commitment: 'confirmed' });
       // create or get vault ata
       const pmmAtaIns = await createAssociatedTokenAccountInstructionIfNeeded(connection, deployer.publicKey, tokenMint, pmmKey.publicKey);
       const protocolAtaIns = await createAssociatedTokenAccountInstructionIfNeeded(connection, deployer.publicKey, tokenMint, protocolPda);
       const transaction = new Transaction().add(...pmmAtaIns, ...protocolAtaIns);
       transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-      const createAtaSig = await sendAndConfirmTransaction(connection, transaction, [deployer], { commitment: 'confirmed' });
-
-      // const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
-      //   operator: operator.publicKey,
-      //   token: tokenMint,
-      //   amount: 0.001 * LAMPORTS_PER_SOL,
-      //   connection: connection,
-      // });
-      // const addWhitelistTransaction = new Transaction().add(...addWhitelistIns);
-      // addWhitelistTransaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-      // await sendAndConfirmTransaction(connection, addWhitelistTransaction, [operator], { commitment: 'confirmed' });
+      await sendAndConfirmTransaction(connection, transaction, [deployer], { commitment: 'confirmed' });
     });
 
     it('Should succeed with SPL token deposit, withdraw total fee', async () => {
@@ -957,13 +934,13 @@ describe('optimex-sol-smartcontract', () => {
       const { tradeId } = await getTradeInput(depositParams);
       const setFeeIns = await createSetTotalFeeInstructions({
         tradeId: tradeId,
-        amount: feeAmount,
+        amount: BigInt(feeAmount),
         mpcPubkey: mpc.publicKey,
         connection: connection,
       })
       const transaction = new Transaction().add(...setFeeIns);
       try {
-        const sig = await sendAndConfirmTransaction(connection, transaction, [mpc], { commitment: 'confirmed' });
+        await sendAndConfirmTransaction(connection, transaction, [mpc], { commitment: 'confirmed' });
       } catch (error) {
         console.log('Error: ', error);
         throw error;

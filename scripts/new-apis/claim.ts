@@ -1,5 +1,5 @@
 import { getKeypairFromFile } from "../utils/helper";
-import { createClaimAndRefundAtaAndProtocolAtaIfNeededInstructions } from "optimex-solana-js";
+import { createClaimAndRefundAtaAndProtocolAtaIfNeededInstructions } from "../../solana-js";
 import { clusterApiUrl, Connection, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
 import path from 'path';
 

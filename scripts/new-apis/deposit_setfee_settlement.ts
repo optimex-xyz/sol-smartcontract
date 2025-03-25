@@ -4,7 +4,7 @@ import { keccak256, toUtf8Bytes } from "ethers";
 import path from 'path';
 import crypto from 'crypto';
 import { delay, getBlockTime } from "../utils/helper";
-import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions, createSetTotalFeeInstructions, createUserPresignSettlementTransactionAndSerializeToString, DepositInstructionParam, getTradeInput } from "optimex-solana-js";
+import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions, createSetTotalFeeInstructions, createUserPresignSettlementTransactionAndSerializeToString, DepositInstructionParam, getTradeInput } from "../../solana-js";
 
 (async () => {
     const connection = new Connection(clusterApiUrl('devnet'));
@@ -25,7 +25,7 @@ import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions, createSetT
         userPubkey: user.publicKey,
         mpcPubkey: mpc.publicKey,
         userEphemeralPubkey: userEphemeral.publicKey,
-        amount: 0.1 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.1 * LAMPORTS_PER_SOL),
         connection: connection,
         scriptTimeout,
         fromToken: {
@@ -78,7 +78,7 @@ import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions, createSetT
     console.log(`Start setting protocol fee`);
     const setFeeIns = await createSetTotalFeeInstructions({
         tradeId,
-        amount: 0.0001 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.0001 * LAMPORTS_PER_SOL),
         connection,
         mpcPubkey: mpc.publicKey,
     });

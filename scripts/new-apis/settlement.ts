@@ -1,7 +1,6 @@
 import { getKeypairFromFile } from "../utils/helper";
-import { clusterApiUrl, Connection, sendAndConfirmTransaction, Transaction } from "@solana/web3.js"
-import { createAssociatedTokenAccountInstructionIfNeeded, getProtocolPda, WSOL_MINT } from "optimex-solana-js";
-import { createUserPresignSettlementTransactionAndSerializeToString } from "optimex-solana-js";
+import { clusterApiUrl, Connection, Transaction } from "@solana/web3.js"
+import { createUserPresignSettlementTransactionAndSerializeToString } from "../../solana-js";
 import path from 'path';
 
 (async () => {
@@ -9,11 +8,9 @@ import path from 'path';
     const currentDir = __dirname;
     const pmm = await getKeypairFromFile(path.join(currentDir, '../../.wallets/pmm.json'));
     const mpc = await getKeypairFromFile(path.join(currentDir, '../../.wallets/mpc.json'));
-    const user = await getKeypairFromFile(path.join(currentDir, '../../.wallets/user.json'));
     // Pass the tradeID we want to settle here
     const tradeId = '0xedd025e7c4d950c40dfca527785445694c411cc554448d98927f42f1c2a35e79';
     const userEphemeral = await getKeypairFromFile(path.join(currentDir, '../../.wallets/ephemeral.json'));
-    const protocolAta = getProtocolPda();
 
     const settlementPresign = await createUserPresignSettlementTransactionAndSerializeToString({
         connection: connection,
@@ -26,19 +23,6 @@ import path from 'path';
     const recoveredTransaction = Transaction.from(Buffer.from(settlementPresign, 'hex'));
     console.log('Recovered transaction', recoveredTransaction.instructions.length);
     recoveredTransaction.partialSign(mpc);
-
-    const createPmmAtaIns = await createAssociatedTokenAccountInstructionIfNeeded(
-        connection,
-        mpc.publicKey,
-        WSOL_MINT, 
-        pmm.publicKey
-    );
-    const createProtocolAtaIns = await createAssociatedTokenAccountInstructionIfNeeded(
-        connection,
-        mpc.publicKey,
-        WSOL_MINT, 
-        protocolAta,
-    );
 
     // const createAtaTrans = new Transaction().add(...createPmmAtaIns, ...createProtocolAtaIns);
     // console.log('Create ATA transaction', createAtaTrans.instructions.length);

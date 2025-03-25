@@ -1,5 +1,5 @@
 import { clusterApiUrl, Connection, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
-import { createInitializeProgramInstructions, getConfigPda } from "optimex-solana-js";
+import { createInitializeProgramInstructions, getConfigPda } from "../../solana-js";
 import path from 'path';
 import { getKeypairFromFile } from "../utils/helper";
 

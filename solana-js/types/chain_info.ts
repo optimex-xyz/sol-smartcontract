@@ -1,5 +1,5 @@
 export type ChainInfo = {
-    tokenId: string;
-    network: string;
-    address: string;
-};
+  tokenId: string
+  network: string
+  address: string
+}

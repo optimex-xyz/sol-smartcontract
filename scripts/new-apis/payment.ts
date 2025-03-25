@@ -9,7 +9,7 @@ import {
 import { getKeypairFromFile } from '../utils/helper';
 import path from 'path';
 import { sha256 } from 'ethers';
-import { createPaymentAndRefundAtaAndProtocolAtaIfNeededInstructions } from "optimex-solana-js";
+import { createPaymentAndRefundAtaAndProtocolAtaIfNeededInstructions } from "../../solana-js";
 import { getBlockTime } from '../utils/helper';
 
 (async () => {
@@ -37,8 +37,8 @@ import { getBlockTime } from '../utils/helper';
     toUser: pmm.publicKey,
     tradeId,
     token: null,
-    amount: amount,
-    totalFee: feeAmount,
+    amount: BigInt(amount),
+    totalFee: BigInt(feeAmount),
     deadline,
     connection: connection
   });

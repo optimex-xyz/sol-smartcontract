@@ -1,4 +1,4 @@
-import { Commitment, Connection, NONCE_ACCOUNT_LENGTH, PublicKey, SystemProgram } from "@solana/web3.js";
+import { Commitment, Connection, NONCE_ACCOUNT_LENGTH, PublicKey, SystemProgram } from '@solana/web3.js'
 
 /**
  * Create a group of instructions for creating a nonce account and initialize it for durable transaction
@@ -9,31 +9,31 @@ import { Commitment, Connection, NONCE_ACCOUNT_LENGTH, PublicKey, SystemProgram 
  * @returns An array of instructions for creating a nonce account, and initialize it
  */
 export async function createEphemeralNonceAccountInstruction({
-    userPubkey, 
-    userEphemeralPubkey,
-    authorityKey,
-    connection,
-    commitment,
+  userPubkey,
+  userEphemeralPubkey,
+  authorityKey,
+  connection,
+  commitment,
 }: {
-    userPubkey: PublicKey,
-    userEphemeralPubkey: PublicKey,
-    authorityKey: PublicKey,
-    connection: Connection,
-    commitment?: Commitment,
+  userPubkey: PublicKey
+  userEphemeralPubkey: PublicKey
+  authorityKey: PublicKey
+  connection: Connection
+  commitment?: Commitment
 }) {
-    const commitmentLevel = commitment || 'confirmed';
-    const rentExemptBalance = await connection.getMinimumBalanceForRentExemption(NONCE_ACCOUNT_LENGTH, commitmentLevel);
-    return [
-        SystemProgram.createAccount({
-            fromPubkey: userPubkey,
-            newAccountPubkey: userEphemeralPubkey,
-            lamports: rentExemptBalance,
-            space: NONCE_ACCOUNT_LENGTH,
-            programId: SystemProgram.programId,
-        }),
-        SystemProgram.nonceInitialize({
-            noncePubkey: userEphemeralPubkey,
-            authorizedPubkey: authorityKey,
-        })
-    ]
+  const commitmentLevel = commitment || 'confirmed'
+  const rentExemptBalance = await connection.getMinimumBalanceForRentExemption(NONCE_ACCOUNT_LENGTH, commitmentLevel)
+  return [
+    SystemProgram.createAccount({
+      fromPubkey: userPubkey,
+      newAccountPubkey: userEphemeralPubkey,
+      lamports: rentExemptBalance,
+      space: NONCE_ACCOUNT_LENGTH,
+      programId: SystemProgram.programId,
+    }),
+    SystemProgram.nonceInitialize({
+      noncePubkey: userEphemeralPubkey,
+      authorizedPubkey: authorityKey,
+    }),
+  ]
 }

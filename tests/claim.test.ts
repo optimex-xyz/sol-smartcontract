@@ -20,7 +20,8 @@ import {
   getAssociatedTokenAddress,
   TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
-import { bigintToBytes32, DepositInstructionParam, getProtocolPda } from '../solana-js/dist';
+import { bigintToBytes32 } from '../solana-js';
+import { DepositInstructionParam } from '../solana-js/instructions/deposit';
 import { delay } from '../scripts/utils/helper';
 import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions } from '../solana-js/instructions/deposit';
 import { createInitializeProgramInstructions } from '../solana-js/instructions/intialize';
@@ -45,7 +46,6 @@ describe('Claim() functional testing', () => {
   const deployer = (anchorProvider.wallet as anchor.Wallet).payer;
   const user = Keypair.generate();
   const mpcKey = Keypair.generate();
-  const protocolPda = getProtocolPda();
   const operator = Keypair.generate();
 
 
@@ -62,7 +62,6 @@ describe('Claim() functional testing', () => {
 
       await connection.requestAirdrop(user.publicKey, 10 * LAMPORTS_PER_SOL);
       await connection.requestAirdrop(mpcKey.publicKey, 10 * LAMPORTS_PER_SOL);
-      const sig = await connection.requestAirdrop(operator.publicKey, 10 * LAMPORTS_PER_SOL);
     })
 
     it('Add operator successfully', async () => {
@@ -95,7 +94,7 @@ describe('Claim() functional testing', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: WSOL_MINT,
-        amount: 0.001 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.001 * LAMPORTS_PER_SOL),
         connection: connection,
       });
       const addWhitelistTransaction = new Transaction().add(...addWhitelistIns);
@@ -106,7 +105,7 @@ describe('Claim() functional testing', () => {
         userPubkey: user.publicKey,
         mpcPubkey: mpcKey.publicKey,
         userEphemeralPubkey: userEphemeralKey.publicKey,
-        amount,
+        amount: BigInt(amount),
         connection,
         scriptTimeout: await getBlockTime(connection) + 3,
         fromToken,
@@ -181,7 +180,6 @@ describe('Claim() functional testing', () => {
       const beforeVaultBalance = await connection.getBalance(vaultPda, 'confirmed');
       const beforeRefundBalance = await connection.getBalance(refundKey.publicKey, 'confirmed');
       const beforeUserBalance = await connection.getBalance(user.publicKey, 'confirmed');
-      const tradeDetailBalance = await connection.getBalance(correctUserTradeDetail, 'confirmed');
       const nonceCheckAccount = getNonceCheckPda(userEphemeralKey.publicKey);
       const nonceCheckAccountBalance = await connection.getBalance(nonceCheckAccount, 'confirmed');
       const claimIns = await createClaimAndRefundAtaAndProtocolAtaIfNeededInstructions({
@@ -263,8 +261,7 @@ describe('Claim() functional testing', () => {
     let correctTradeIdBytes: number[];
     let correctUserTradeDetail: PublicKey;
     let depositParam: DepositInstructionParam;
-    let userProtocolPda: PublicKey;
-    let remainingAccounts: AccountMeta[] = [];
+    const remainingAccounts: AccountMeta[] = [];
     let vaultPda: PublicKey;
     before(async () => {
       await createMint(
@@ -281,7 +278,7 @@ describe('Claim() functional testing', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: tokenMint,
-        amount: 0.001 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.001 * LAMPORTS_PER_SOL),
         connection: connection,
       });
 
@@ -292,7 +289,7 @@ describe('Claim() functional testing', () => {
         userPubkey: user.publicKey,
         mpcPubkey: mpcKey.publicKey,
         userEphemeralPubkey: userEphemeralKey.publicKey,
-        amount,
+        amount: BigInt(amount),
         connection,
         scriptTimeout: await getBlockTime(connection) + 2,
         fromToken,

@@ -1,5 +1,5 @@
-import { clusterApiUrl, Connection, PublicKey, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
-import { createAddOperatorInstruction, createSetCloseWaitDurationInstruction } from "optimex-solana-js";
+import { clusterApiUrl, Connection, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
+import { createSetCloseWaitDurationInstruction } from "../../solana-js";
 import path from 'path';
 import { getKeypairFromFile } from "../utils/helper";
 

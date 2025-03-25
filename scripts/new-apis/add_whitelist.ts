@@ -1,8 +1,8 @@
 import { getKeypairFromFile } from "../utils/helper";
 import { clusterApiUrl, Connection, LAMPORTS_PER_SOL, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
-import { createAddOrUpdateWhitelistInstruction } from "optimex-solana-js";
+import { createAddOrUpdateWhitelistInstruction } from "../../solana-js";
 import path from 'path';
-import { WSOL_MINT } from "optimex-solana-js";
+import { WSOL_MINT } from "../../solana-js/constants";
 (async () => {
     const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
     const currentDir = __dirname;

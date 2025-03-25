@@ -20,7 +20,7 @@ upgradeable = true
 
 [scripts]
 #test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/verify_presign.test.ts"
-test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/optimex_success.test.ts"
+#test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/optimex_success.test.ts"
 #test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/payment.test.ts"
 #test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/deposit.test.ts"
 #test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/claim.test.ts"
@@ -28,4 +28,4 @@ test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/optimex_success.te
 #test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/admin-manage.test.ts"
 #test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/setTotalFee.test.ts"
 #test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/closeFinishedTrade.test.ts"
-#test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/withdrawTotalFee.test.ts"
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/withdrawTotalFee.test.ts"

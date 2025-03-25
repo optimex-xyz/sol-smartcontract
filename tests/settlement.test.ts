@@ -12,16 +12,16 @@ import {
 } from '@solana/web3.js';
 import dotenv from 'dotenv';
 import { expect, assert } from 'chai';
-import { airdropTokenToUser, createAccount, createTokenPair, getBlockTime, getTokenBalance, sleep } from './utils';
+import { airdropTokenToUser, createTokenPair, getBlockTime, getTokenBalance, sleep } from './utils';
 import { keccak256, toUtf8Bytes } from 'ethers';
 import { solverAddress } from './example-data';
 import {
   createMint,
   getAssociatedTokenAddress,
-  setTransferFeeInstructionData,
   TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
-import { bigintToBytes32, DepositInstructionParam, getProtocolPda, getUserTradeDetailPda } from '../solana-js/dist';
+import { bigintToBytes32, getProtocolPda, getUserTradeDetailPda } from '../solana-js';
+import { DepositInstructionParam } from '../solana-js/instructions/deposit';
 import { delay } from '../scripts/utils/helper';
 import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions, createDepositAndVaultAtaIfNeededInstructions } from '../solana-js/instructions/deposit';
 import { createAssociatedTokenAccountInstructionIfNeeded } from '../solana-js/instructions/helpers';
@@ -34,8 +34,6 @@ import { getNonceCheckPda, getTradeVaultPda } from '../solana-js/pda/get_pda_add
 import { getTradeDetailData } from '../solana-js/pda/get_pda_data';
 import { getTradeInput } from '../solana-js/utils/param_utils';
 dotenv.config();
-
-type TradeDetail = anchor.IdlTypes<OptimexSolSmartcontract>['tradeDetail'];
 
 describe('Settlement() functional testing', () => {
   // Configure the client to use the local cluster.
@@ -97,7 +95,7 @@ describe('Settlement() functional testing', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: WSOL_MINT,
-        amount: 0.001 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.001 * LAMPORTS_PER_SOL),
         connection: connection,
       });
       const addWhitelistTransaction = new Transaction().add(...addWhitelistIns);
@@ -108,7 +106,7 @@ describe('Settlement() functional testing', () => {
         userPubkey: user.publicKey,
         mpcPubkey: mpcKey.publicKey,
         userEphemeralPubkey: userEphemeralKey.publicKey,
-        amount,
+        amount: BigInt(amount),
         connection,
         scriptTimeout: await getBlockTime(connection) + 15,
         fromToken,
@@ -145,7 +143,6 @@ describe('Settlement() functional testing', () => {
       const vaultPda = getTradeVaultPda(correctTradeId);
       fakeVaultPda = vaultPda;
       const beforeVaultBalance = await connection.getBalance(vaultPda, 'confirmed');
-      const userTradeDetailBalance = await connection.getBalance(correctUserTradeDetail, 'confirmed');
       const beforeUserBalance = await connection.getBalance(user.publicKey, 'confirmed');
       const beforePmmBalance = await connection.getBalance(pmm.publicKey, 'confirmed');
       const nonceCheckPda = getNonceCheckPda(userEphemeralKey.publicKey);
@@ -193,6 +190,7 @@ describe('Settlement() functional testing', () => {
       try {
         await sendAndConfirmTransaction(connection, transaction, [user, userEphemeralKey], { commitment: 'confirmed' });
       } catch (error) {
+        console.log(error);
         throw error;
       }
       try {
@@ -227,7 +225,7 @@ describe('Settlement() functional testing', () => {
         userPubkey: user.publicKey,
         mpcPubkey: mpcKey.publicKey,
         userEphemeralPubkey: userEphemeralKey.publicKey,
-        amount,
+        amount: BigInt(amount),
         connection,
         scriptTimeout: await getBlockTime(connection) + 3,
         fromToken,
@@ -261,7 +259,7 @@ describe('Settlement() functional testing', () => {
     })
 
     it('Settlement() failed when mismatch user_account', async () => {
-      let newUserAccount = {
+      const newUserAccount = {
         ...correctUserAccount,
         userAccount: Keypair.generate().publicKey,
       }
@@ -280,7 +278,7 @@ describe('Settlement() functional testing', () => {
     })
 
     it('Settlement() failed when mismatch refund_account', async () => {
-      let newUserAccount = {
+      const newUserAccount = {
         ...correctUserAccount,
         refundAccount: Keypair.generate().publicKey,
       }
@@ -305,7 +303,7 @@ describe('Settlement() functional testing', () => {
         sessionId: BigInt(keccak256(toUtf8Bytes(crypto.randomUUID()))),
         userEphemeralPubkey: newEphemeralKey.publicKey,
       }
-      let newUserAccount = {
+      const newUserAccount = {
         ...correctUserAccount,
         userEphemeralAccount: newEphemeralKey.publicKey,
       }
@@ -334,7 +332,7 @@ describe('Settlement() functional testing', () => {
 
     it('Settlement() failed when mismatch signer', async () => {
       const newMpcKey = Keypair.generate();
-      let newUserAccount = {
+      const newUserAccount = {
         ...correctUserAccount,
         signer: newMpcKey.publicKey,
       }
@@ -354,7 +352,7 @@ describe('Settlement() functional testing', () => {
 
     it('Settlement() failed when mismatch protocol', async () => {
       const newProtocolPda = Keypair.generate();
-      let newUserAccount = {
+      const newUserAccount = {
         ...correctUserAccount,
         protocol: newProtocolPda.publicKey,
       }
@@ -368,13 +366,13 @@ describe('Settlement() functional testing', () => {
           .rpc();
         assert.fail('Should not reach here');
       } catch (error) {
-        expect(error.errorLogs.some(log => log.includes('ConstraintSeeds') && log.includes('protocol'))).to.be.true;
+        assert.ok(error.errorLogs.some(log => log.includes('ConstraintSeeds') && log.includes('protocol')));
       }
     })
 
     it('Settlement() failed when mismatch vault', async () => {
       await delay(5000);
-      let newUserAccount = {
+      const newUserAccount = {
         ...correctUserAccount,
         vault: fakeVaultPda,
       }
@@ -388,7 +386,7 @@ describe('Settlement() functional testing', () => {
           .rpc();
         assert.fail('Should not reach here');
       } catch (error) {
-        expect(error.errorLogs.some(log => log.includes('ConstraintSeeds') && log.includes('vault'))).to.be.true;
+        assert.ok(error.errorLogs.some(log => log.includes('ConstraintSeeds') && log.includes('vault')));
       }
     })
 
@@ -430,7 +428,7 @@ describe('Settlement() functional testing', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: tokenMint,
-        amount: 0.001 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.001 * LAMPORTS_PER_SOL),
         connection: connection,
       });
       const addWhitelistTransaction = new Transaction().add(...addWhitelistIns);
@@ -442,7 +440,7 @@ describe('Settlement() functional testing', () => {
         userPubkey: user.publicKey,
         mpcPubkey: mpcKey.publicKey,
         userEphemeralPubkey: userEphemeralKey.publicKey,
-        amount,
+        amount: BigInt(amount),
         connection,
         scriptTimeout: await getBlockTime(connection) + 3,
         fromToken,
@@ -536,7 +534,7 @@ describe('Settlement() functional testing', () => {
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: tokenMint,
-        amount: 0.001 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.001 * LAMPORTS_PER_SOL),
         connection: connection,
       });
       const addWhitelistTransaction = new Transaction().add(...addWhitelistIns);
@@ -548,7 +546,7 @@ describe('Settlement() functional testing', () => {
         userPubkey: user.publicKey,
         mpcPubkey: mpcKey.publicKey,
         userEphemeralPubkey: userEphemeralKey.publicKey,
-        amount,
+        amount: BigInt(amount),
         connection,
         scriptTimeout: await getBlockTime(connection) + 3,
         fromToken,
@@ -596,7 +594,7 @@ describe('Settlement() functional testing', () => {
 
       const setProtocolFeeIns = await createSetTotalFeeInstructions({
         tradeId: correctTradeId,
-        amount: (0.001 * LAMPORTS_PER_SOL),
+        amount: BigInt(0.001 * LAMPORTS_PER_SOL),
         mpcPubkey: mpcKey.publicKey,
         connection: connection,
       });
@@ -695,8 +693,6 @@ describe('Settlement() functional testing', () => {
 
     it('Settlement() failed when timeout', async () => {
       await delay(5000);
-      const userTradeDetail = (correctUserAccount as any).userTradeDetail;
-      const tradeDetailInfo = await program.account.tradeDetail.fetch(userTradeDetail);
       try {
         await program.methods.settlement({
           tradeId: correctTradeIdBytes,

@@ -34,7 +34,7 @@ export const createAccount = async ({
 
   const tx = new Transaction().add(createAccountIns).add(transferIns);
 
-  const sig = await provider.sendAndConfirm(tx as any, [newAccountKeypair], {
+  await provider.sendAndConfirm(tx as any, [newAccountKeypair], {
     maxRetries: 20,
   });
 

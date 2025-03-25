@@ -2,7 +2,7 @@ import { clusterApiUrl, NONCE_ACCOUNT_LENGTH, sendAndConfirmTransaction, SystemP
 import { getKeypairFromFile } from '../utils/helper';
 import { Connection } from '@solana/web3.js';
 import path from 'path';
-import { createCloseFinishedTradeInstructions } from "optimex-solana-js";
+import { createCloseFinishedTradeInstructions } from "../../solana-js";
 
 (async () => {
     const currentDir = __dirname;

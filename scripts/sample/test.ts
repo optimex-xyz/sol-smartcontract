@@ -1,5 +1,5 @@
 import { clusterApiUrl, Connection } from "@solana/web3.js";
-import { getConfigData } from "optimex-solana-js";
+import { getConfigData } from "../../solana-js";
 
 (async () => {
     const connection = new Connection(clusterApiUrl('devnet'));

@@ -2,41 +2,36 @@ import * as anchor from '@coral-xyz/anchor';
 import { Program } from '@coral-xyz/anchor';
 import { OptimexSolSmartcontract } from '../target/types/optimex_sol_smartcontract';
 import {
-  ComputeBudgetProgram,
   Connection,
   Keypair,
   LAMPORTS_PER_SOL,
-  NONCE_ACCOUNT_LENGTH,
   sendAndConfirmTransaction,
   Transaction,
 } from '@solana/web3.js';
 import dotenv from 'dotenv';
-import { expect, use } from 'chai';
-import { airdropTokenToUser, createTokenPair, getBlockTime, getTokenBalance, sleep } from './utils';
-import { FeeDataNetworkPlugin, keccak256, recoverAddress, toUtf8Bytes } from 'ethers';
+import { expect } from 'chai';
+import { createTokenPair, getTokenBalance } from './utils';
+import { keccak256, toUtf8Bytes } from 'ethers';
 import { assert } from 'chai';
 import crypto from 'crypto';
 import { solverAddress } from './example-data';
 import {
   createAssociatedTokenAccountInstruction,
-  createMint,
   createSyncNativeInstruction,
   getAssociatedTokenAddressSync,
 } from '@solana/spl-token';
-import { getFeeReceiverPda, getProtocolPda, getTradeVaultPda, getUserTradeDetailPda, getVaultPda, getWhitelistPda } from '../solana-js/pda/get_pda_address';
+import { getFeeReceiverPda, getProtocolPda, getTradeVaultPda, getUserTradeDetailPda, getVaultPda } from '../solana-js/pda/get_pda_address';
 import { createInitializeProgramInstructions } from '../solana-js/instructions/intialize';
-import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions, DepositInstructionParam } from '../solana-js/instructions/deposit';
+import { createDepositAndVaultAtaIfNeededAndNonceAccountInstructions } from '../solana-js/instructions/deposit';
 import { createUserPresignSettlementTransactionAndSerializeToString } from '../solana-js/instructions/settlement';
 import { createAssociatedTokenAccountInstructionIfNeeded } from '../solana-js/instructions/helpers';
 import { getTradeInput } from '../solana-js/utils/param_utils';
-import { createClaimAndRefundAtaAndProtocolAtaIfNeededInstructions } from '../solana-js/instructions/claim';
 import { createSetTotalFeeInstructions } from '../solana-js/instructions/set_total_fee';
 import { createAddOperatorInstruction } from '../solana-js/instructions/manage_operator';
 import { WSOL_MINT } from '../solana-js/constants';
 import { createAddFeeReceiverInstruction, createAddOrUpdateWhitelistInstruction } from '../solana-js/instructions/manage_config';
 import { SystemProgram } from '@solana/web3.js';
 import { getTradeDetailData } from '../solana-js/pda/get_pda_data';
-import { createCloseFinishedTradeInstructions } from '../solana-js/instructions/close_finished_trade';
 import { bigintToBytes32 } from '../solana-js/utils/parse_utils';
 import { createReceiverAtaIfNeededAndWithdrawTotalFeeInstruction } from '../solana-js/instructions/withdraw_total_fee';
 import { InvalidParamError } from '../solana-js/errors/invalid_param_error';
@@ -78,27 +73,29 @@ describe('Withdraw total fee', () => {
       const transaction = new Transaction().add(...instructions);
       transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
       try {
-        const txHash = await sendAndConfirmTransaction(connection, transaction, [deployer], { commitment: 'confirmed' });
+        await sendAndConfirmTransaction(connection, transaction, [deployer], { commitment: 'confirmed' });
       } catch (error) {
         console.error(error);
         throw error;
       }
 
       // Expect vault and protocol pda is already init
-      let vaultPdaAccountInfo = await connection.getAccountInfo(vaultPda, 'confirmed');
+      const vaultPdaAccountInfo = await connection.getAccountInfo(vaultPda, 'confirmed');
 
-      expect(
-        vaultPdaAccountInfo.owner.toString() === program.programId.toString(),
+      assert.equal(
+        vaultPdaAccountInfo.owner.toString(),
+        program.programId.toString(),
         'Expect owner of vault pda is program smart-contract'
-      ).to.be.true;
+      )
 
-      let protocolPdaAccountInfo = await connection.getAccountInfo(protocolPda);
+      const protocolPdaAccountInfo = await connection.getAccountInfo(protocolPda);
 
-      expect(
-        protocolPdaAccountInfo.owner.toString() ===
+      assert.equal(
+        protocolPdaAccountInfo.owner.toString(),
         program.programId.toString(),
         'Expect owner of protocol pda is program smart-contract'
-      ).to.be.true;
+      )
+
     });
 
     it('Admin add operator successfully', async () => {
@@ -127,11 +124,10 @@ describe('Withdraw total fee', () => {
     });
 
     it('Operator add whitelist for WSOL successfully', async () => {
-      const whitelistToken = getWhitelistPda(WSOL_MINT);
       const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
         operator: operator.publicKey,
         token: WSOL_MINT,
-        amount: 0.001 * LAMPORTS_PER_SOL,
+        amount: BigInt(0.001 * LAMPORTS_PER_SOL),
         connection: connection,
       });
       const transaction = new Transaction().add(...addWhitelistIns);
@@ -155,7 +151,7 @@ describe('Withdraw total fee', () => {
       userPubkey: user.publicKey,
       mpcPubkey: mpc.publicKey,
       userEphemeralPubkey: userEphemeralKey.publicKey,
-      amount: amount,
+      amount: BigInt(amount),
       connection: connection,
       scriptTimeout: Math.floor(Date.now() / 1000) + 3000,
       fromToken,
@@ -164,7 +160,6 @@ describe('Withdraw total fee', () => {
       toUserAddress: '0x9fc3da866e7df3a1c57ade1a97c9f00a70f010c8',
       refundPubkey: refundKey.publicKey,
     };
-    const isNativeToken = fromToken.tokenSymbol === 'SOL';
     it('Should succeed with amount', async () => {
       const { tradeId } = await getTradeInput(depositParams);
       const vaultPda = getTradeVaultPda(tradeId);
@@ -176,7 +171,7 @@ describe('Withdraw total fee', () => {
         const transaction = new Transaction().add(...instructions);
         transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
         transaction.feePayer = deployer.publicKey;
-        const sig = await sendAndConfirmTransaction(connection, transaction, [user, userEphemeralKey, deployer], { commitment: 'confirmed' });
+        await sendAndConfirmTransaction(connection, transaction, [user, userEphemeralKey, deployer], { commitment: 'confirmed' });
       } catch (error) {
         console.log('Error: ', error);
         throw error;
@@ -201,13 +196,13 @@ describe('Withdraw total fee', () => {
       const { tradeId } = await getTradeInput(depositParams);
       const setFeeIns = await createSetTotalFeeInstructions({
         tradeId,
-        amount: feeAmount,
+        amount: BigInt(feeAmount),
         connection,
         mpcPubkey: mpc.publicKey,
       })
       const transaction = new Transaction().add(...setFeeIns);
       try {
-        const sig = await sendAndConfirmTransaction(connection, transaction, [mpc], { commitment: 'confirmed' });
+        await sendAndConfirmTransaction(connection, transaction, [mpc], { commitment: 'confirmed' });
       } catch (error) {
         console.log('Error: ', error);
         throw error;
@@ -280,7 +275,6 @@ describe('Withdraw total fee', () => {
 
     it('Should withdraw fee error when fee receiver is not set', async () => {
       const fakeFeeReceiver = Keypair.generate();
-      const feeReceiverPda = getFeeReceiverPda(fakeFeeReceiver.publicKey);
       try {
         await program.methods
           .withdrawTotalFee({
@@ -302,7 +296,6 @@ describe('Withdraw total fee', () => {
 
     it('Should withdraw fee error when fee receiver is not set', async () => {
       const fakeFeeReceiver = Keypair.generate();
-      const feeReceiverPda = getFeeReceiverPda(fakeFeeReceiver.publicKey);
       try {
         await program.methods
           .withdrawTotalFee({
@@ -328,7 +321,7 @@ describe('Withdraw total fee', () => {
         token: null,
         receiverPubkey: feeReceiver.publicKey,
         signer: operator.publicKey,
-        amount: smallFee,
+        amount: BigInt(smallFee),
       });
       const beforeProtocolBalance = await connection.getBalance(protocolPda, { commitment: 'confirmed' });
       const beforeFeeReceiverBalance = await connection.getBalance(feeReceiver.publicKey, { commitment: 'confirmed' });
@@ -367,12 +360,12 @@ describe('Withdraw total fee', () => {
     it('Should withdraw fee error when create instruction to withdraw too much SOL', async () => {
       const protocolBalance = await connection.getBalance(protocolPda, { commitment: 'confirmed' });
       try { 
-        const withdrawTotalFeeIns = await createReceiverAtaIfNeededAndWithdrawTotalFeeInstruction({
+        await createReceiverAtaIfNeededAndWithdrawTotalFeeInstruction({
           connection,
           token: null,
           receiverPubkey: feeReceiver.publicKey,
           signer: operator.publicKey,
-          amount: protocolBalance,
+          amount: BigInt(protocolBalance),
         });
       } catch (error) {
         expect(error).to.be.instanceOf(InvalidParamError);
@@ -406,8 +399,7 @@ describe('Withdraw total fee', () => {
   });
 
   describe('Deposit(), setFee and settle successfully with WSOL', () => {
-    let tokenMint = WSOL_MINT;
-    let vaultAta: any;
+    const tokenMint = WSOL_MINT;
     const userEphemeralKey = Keypair.generate();
     const refundKey = Keypair.generate();
     const pmmKey = Keypair.generate();
@@ -437,7 +429,7 @@ describe('Withdraw total fee', () => {
       userPubkey: user.publicKey,
       mpcPubkey: mpc.publicKey,
       userEphemeralPubkey: userEphemeralKey.publicKey,
-      amount: amount,
+      amount: BigInt(amount),
       connection: anchorProvider.connection,
       scriptTimeout: Math.floor(Date.now() / 1000) + 3000,
       fromToken,
@@ -446,16 +438,14 @@ describe('Withdraw total fee', () => {
       refundPubkey: refundKey.publicKey,
       toUserAddress: '0x9fc3da866e7df3a1c57ade1a97c9f00a70f010c8',
     };
-    const isNativeToken = fromToken.tokenSymbol === 'SOL';
     before(async () => {
-      const deployerBalance = await connection.getBalance(deployer.publicKey);
-      const wrapSolTxSig = await sendAndConfirmTransaction(connection, wrapSolTx, [deployer], { commitment: 'confirmed' });
+      await sendAndConfirmTransaction(connection, wrapSolTx, [deployer], { commitment: 'confirmed' });
       // create or get vault ata
       const pmmAtaIns = await createAssociatedTokenAccountInstructionIfNeeded(connection, deployer.publicKey, tokenMint, pmmKey.publicKey);
       const protocolAtaIns = await createAssociatedTokenAccountInstructionIfNeeded(connection, deployer.publicKey, tokenMint, protocolPda);
       const transaction = new Transaction().add(...pmmAtaIns, ...protocolAtaIns);
       transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-      const createAtaSig = await sendAndConfirmTransaction(connection, transaction, [deployer], { commitment: 'confirmed' });
+      await sendAndConfirmTransaction(connection, transaction, [deployer], { commitment: 'confirmed' });
 
       // const addWhitelistIns = await createAddOrUpdateWhitelistInstruction({
       //   operator: operator.publicKey,
@@ -505,13 +495,13 @@ describe('Withdraw total fee', () => {
       const { tradeId } = await getTradeInput(depositParams);
       const setFeeIns = await createSetTotalFeeInstructions({
         tradeId: tradeId,
-        amount: feeAmount,
+        amount: BigInt(feeAmount),
         mpcPubkey: mpc.publicKey,
         connection: connection,
       })
       const transaction = new Transaction().add(...setFeeIns);
       try {
-        const sig = await sendAndConfirmTransaction(connection, transaction, [mpc], { commitment: 'confirmed' });
+        await sendAndConfirmTransaction(connection, transaction, [mpc], { commitment: 'confirmed' });
       } catch (error) {
         console.log('Error: ', error);
         throw error;
@@ -563,7 +553,7 @@ describe('Withdraw total fee', () => {
         token: WSOL_MINT,
         receiverPubkey: feeReceiver.publicKey,
         signer: operator.publicKey,
-        amount: smallFee,
+        amount: BigInt(smallFee),
       });
       const beforeProtocolBalance = await getTokenBalance(connection, WSOL_MINT, protocolPda);
       const beforeFeeReceiverBalance = await getTokenBalance(connection, WSOL_MINT, feeReceiver.publicKey);

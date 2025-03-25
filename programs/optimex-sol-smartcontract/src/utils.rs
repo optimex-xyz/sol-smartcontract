@@ -27,7 +27,7 @@ pub fn assert_keys_equal(key1: &Pubkey, key2: &Pubkey, error_type: CustomError) 
 }
 
 /// Converts a byte array to a u64 number.
-pub fn bytes_to_u64_number(amount_in_bytes: &[u8]) -> u64 {
+pub fn bytes_to_u64_number(amount_in_bytes: &[u8]) -> Result<u64> {
     // Find first non-zero byte from left (big-endian)
     let mut start_idx = 0;
     while start_idx < amount_in_bytes.len() && amount_in_bytes[start_idx] == 0 {
@@ -35,10 +35,8 @@ pub fn bytes_to_u64_number(amount_in_bytes: &[u8]) -> u64 {
     }
 
     // Take last 8 bytes that contain the value
-    let value_bytes = if amount_in_bytes.len() - start_idx >= 8 {
-        let end_idx = amount_in_bytes.len();
-        let start_idx = end_idx - 8;
-        &amount_in_bytes[start_idx..end_idx]
+    let value_bytes = if amount_in_bytes.len() - start_idx > 8 {
+        return Err(CustomError::AmountExceeds.into());
     } else {
         &amount_in_bytes[start_idx..]
     };
@@ -47,7 +45,7 @@ pub fn bytes_to_u64_number(amount_in_bytes: &[u8]) -> u64 {
     let mut amount_bytes = [0u8; 8];
     amount_bytes[8 - value_bytes.len()..].copy_from_slice(value_bytes);
 
-    u64::from_be_bytes(amount_bytes)
+    Ok(u64::from_be_bytes(amount_bytes))
 }
 
 /// Transfers SPL tokens from one account to another, optionally including a protocol fee.
@@ -210,4 +208,32 @@ fn test_vec_u8_to_publickey() {
      ];
     let x = vec_u8_to_publickey(&v).unwrap();
     assert!(cmp_pubkeys(&x,  &original_pubkey));
+}
+
+#[test]
+fn test_bytes_to_u64_number_success() {
+    let v: Vec<u8> = vec![
+        0, 0, 0, 0, 0, 0, 1, 134, 160 
+    ];
+    let x = bytes_to_u64_number(&v);
+    assert_eq!(x, Ok(100000));
+}
+
+#[test]
+fn test_bytes_to_u64_number_success_2() {
+    let v: Vec<u8> = vec![
+        1, 0, 0, 0, 0, 1, 134, 160 
+    ];
+    let x = bytes_to_u64_number(&v);
+    // 160 * 256^0 + 134 * 256^1 + 1 * 256^2 + 1 * 256^7 = 72057594038027936
+    assert_eq!(x, Ok(72057594038027936));
+}
+
+#[test]
+fn test_bytes_to_u64_number_error() {
+    let v: Vec<u8> = vec![
+        1, 0, 0, 0, 0, 0, 1, 134, 160 
+    ];
+    let x = bytes_to_u64_number(&v);
+    assert_eq!(x, Err(CustomError::AmountExceeds.into()));
 }

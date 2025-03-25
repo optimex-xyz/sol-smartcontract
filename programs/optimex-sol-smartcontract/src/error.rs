@@ -28,4 +28,5 @@ pub enum CustomError {
     InvalidTokenAccount,
     InvalidTotalFee,
     InvalidFeeReceiver,
+    AmountExceeds,
 }
