@@ -1,6 +1,6 @@
 # Optimex Protocol Smart Contracts
 
-## Deployed Contracts (Devnet)
+## Deployed Contracts (Mainnet)
 
 - **Contract Address**: `E2pt2s1vZjgf1eBzWhe69qDWawdFKD2u4FbLEFijSMJP`
 
