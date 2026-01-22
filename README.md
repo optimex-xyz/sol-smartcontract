@@ -10,16 +10,16 @@
 3. **Security**: Built on proven Solana security patterns including PDA validation, multi-signature authorization, and role-based access controls. User funds remain under cryptographic control with no authorized party having direct access.
 
 #### Deployed Contracts
+- `Solana`:
 
-
-- **Contract Address**: [`E2pt2s1vZjgf1eBzWhe69qDWawdFKD2u4FbLEFijSMJP`](https://solscan.io/account/E2pt2s1vZjgf1eBzWhe69qDWawdFKD2u4FbLEFijSMJP)
-- **Management account**:
-  - `Config`: [`APG8CAk2PAY2GrjMEUAPF2ZkAhNWK1SYDigKbLR5EHyz`](https://solscan.io/account/APG8CAk2PAY2GrjMEUAPF2ZkAhNWK1SYDigKbLR5EHyz)
-  - `Protocol`: [`9oGcnTY1ngXhhko5dScHgVsLqZW6kEaGVM3EhCMSrwnX`](https://solscan.io/account/9oGcnTY1ngXhhko5dScHgVsLqZW6kEaGVM3EhCMSrwnX)
-- **Assets**:
-  - `WSOL`: [`So11111111111111111111111111111111111111112`](https://solscan.io/token/So11111111111111111111111111111111111111112)
-  - `USDC`: [`EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`](https://solscan.io/token/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)
-  - `USDT`: [`Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB`](https://solscan.io/token/Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB)
+    - **Contract Address**: [`E2pt2s1vZjgf1eBzWhe69qDWawdFKD2u4FbLEFijSMJP`](https://solscan.io/account/E2pt2s1vZjgf1eBzWhe69qDWawdFKD2u4FbLEFijSMJP)
+    - **Management account**:
+        - `Config`: [`APG8CAk2PAY2GrjMEUAPF2ZkAhNWK1SYDigKbLR5EHyz`](https://solscan.io/account/APG8CAk2PAY2GrjMEUAPF2ZkAhNWK1SYDigKbLR5EHyz)
+        - `Protocol`: [`9oGcnTY1ngXhhko5dScHgVsLqZW6kEaGVM3EhCMSrwnX`](https://solscan.io/account/9oGcnTY1ngXhhko5dScHgVsLqZW6kEaGVM3EhCMSrwnX)
+    - **Assets**:
+        - `WSOL`: [`So11111111111111111111111111111111111111112`](https://solscan.io/token/So11111111111111111111111111111111111111112)
+        - `USDC`: [`EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`](https://solscan.io/token/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)
+        - `USDT`: [`Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB`](https://solscan.io/token/Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB)
 
 #### Optimex Authorized parties
 
